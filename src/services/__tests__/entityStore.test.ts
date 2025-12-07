@@ -487,6 +487,137 @@ describe('EntityStore', () => {
       expect(useStore.getState().entities.has('switch.bedroom')).toBe(false)
       expect(callback).toHaveBeenCalledTimes(1) // Only once for initial registration
     })
+
+    it('should clean up old subscription when reconnecting to same entity', async () => {
+      const mockConn1 = createMockConnection()
+      const mockConn2 = createMockConnection()
+      const entity = createMockEntity('light.living_room', 'on')
+      const unsubscribe1 = vi.fn()
+      const unsubscribe2 = vi.fn()
+      const callback = vi.fn()
+
+      // Set up first connection with subscription
+      mockConn1.sendMessagePromise = vi.fn().mockResolvedValue([entity])
+      mockConn1.subscribeEvents = vi.fn().mockResolvedValue(unsubscribe1)
+
+      await act(async () => {
+        await useStore.getState().setConnection(mockConn1)
+      })
+
+      await act(async () => {
+        await useStore.getState().registerEntity('light.living_room', callback)
+      })
+
+      expect(useStore.getState().websocketSubscriptions.has('light.living_room')).toBe(true)
+      expect(mockConn1.subscribeEvents).toHaveBeenCalledTimes(1)
+
+      // Change connection - should clean up old subscriptions and create new ones
+      mockConn2.sendMessagePromise = vi.fn().mockResolvedValue([entity])
+      mockConn2.subscribeEvents = vi.fn().mockResolvedValue(unsubscribe2)
+
+      await act(async () => {
+        await useStore.getState().setConnection(mockConn2)
+      })
+
+      // Old subscription should have been unsubscribed
+      expect(unsubscribe1).toHaveBeenCalled()
+
+      // New subscription should be created for registered entity
+      expect(mockConn2.subscribeEvents).toHaveBeenCalled()
+      expect(useStore.getState().websocketSubscriptions.has('light.living_room')).toBe(true)
+
+      // Should only have one subscription in the Map
+      expect(useStore.getState().websocketSubscriptions.size).toBe(1)
+    })
+
+    it('should remove old subscription from Map after unsubscribing during reconnect', async () => {
+      const mockConn = createMockConnection()
+      const entity = createMockEntity('light.living_room', 'on')
+      const callback = vi.fn()
+      let subscriptionCount = 0
+
+      // Mock subscribeEvents to track how many times it's called
+      mockConn.sendMessagePromise = vi.fn().mockResolvedValue([entity])
+      mockConn.subscribeEvents = vi.fn().mockImplementation(() => {
+        subscriptionCount++
+        return Promise.resolve(vi.fn())
+      })
+
+      await act(async () => {
+        await useStore.getState().setConnection(mockConn)
+      })
+
+      await act(async () => {
+        await useStore.getState().registerEntity('light.living_room', callback)
+      })
+
+      // Should have 1 subscription in the Map
+      expect(useStore.getState().websocketSubscriptions.size).toBe(1)
+      expect(subscriptionCount).toBe(1)
+
+      // Simulate reconnection by setting the same connection again
+      // This triggers resubscription logic in setConnection
+      await act(async () => {
+        await useStore.getState().setConnection(null)
+      })
+
+      expect(useStore.getState().websocketSubscriptions.size).toBe(0)
+
+      // Reconnect
+      await act(async () => {
+        await useStore.getState().setConnection(mockConn)
+      })
+
+      // After reconnection, should still have exactly 1 subscription
+      expect(useStore.getState().websocketSubscriptions.size).toBe(1)
+      expect(subscriptionCount).toBe(2) // One for initial, one for reconnect
+    })
+
+    it('should not delete newer subscription if it was added during cleanup', async () => {
+      const mockConn1 = createMockConnection()
+      const mockConn2 = createMockConnection()
+      const entity = createMockEntity('light.living_room', 'on')
+      const callback = vi.fn()
+      const unsubscribe1 = vi.fn()
+      const unsubscribe2 = vi.fn()
+
+      // Set up first connection
+      mockConn1.sendMessagePromise = vi.fn().mockResolvedValue([entity])
+      mockConn1.subscribeEvents = vi.fn().mockResolvedValue(unsubscribe1)
+
+      await act(async () => {
+        await useStore.getState().setConnection(mockConn1)
+      })
+
+      await act(async () => {
+        await useStore.getState().registerEntity('light.living_room', callback)
+      })
+
+      // Should have the first subscription
+      expect(useStore.getState().websocketSubscriptions.size).toBe(1)
+      const firstSub = useStore.getState().websocketSubscriptions.get('light.living_room')
+      expect(firstSub?.unsubscribe).toBe(unsubscribe1)
+
+      // Set up second connection - this will trigger resubscription
+      mockConn2.sendMessagePromise = vi.fn().mockResolvedValue([entity])
+      mockConn2.subscribeEvents = vi.fn().mockResolvedValue(unsubscribe2)
+
+      // Change connection - this triggers cleanup of old subs and creation of new ones
+      await act(async () => {
+        await useStore.getState().setConnection(mockConn2)
+      })
+
+      // Old subscription should have been unsubscribed
+      expect(unsubscribe1).toHaveBeenCalled()
+
+      // Should have exactly 1 subscription (the new one)
+      expect(useStore.getState().websocketSubscriptions.size).toBe(1)
+      const finalSub = useStore.getState().websocketSubscriptions.get('light.living_room')
+
+      // The subscription in the Map should be the NEW one from mockConn2
+      expect(finalSub?.unsubscribe).toBe(unsubscribe2)
+      expect(finalSub?.unsubscribe).not.toBe(unsubscribe1)
+    })
   })
 
   describe('Store Cleanup', () => {
