@@ -233,6 +233,31 @@ export const HAProvider = ({
     }
   })()
 
+  // Helper function to cleanup connection and event listeners
+  const cleanupConnection = useCallback(() => {
+    if (!currentConnectionRef.current) {
+      return
+    }
+
+    // Remove event listeners first to prevent memory leaks from closures
+    if (connectionCleanupRef.current) {
+      try {
+        connectionCleanupRef.current()
+      } catch (error) {
+        console.warn('Failed to cleanup connection event listeners:', error)
+      }
+      connectionCleanupRef.current = null
+    }
+
+    // Close the connection
+    try {
+      currentConnectionRef.current.close()
+    } catch (error) {
+      console.warn('Failed to close existing connection:', error)
+    }
+    currentConnectionRef.current = null
+  }, [])
+
   // Auth state management
   const auth = useAuth(mockMode ? null : url, authMode)
 
@@ -306,24 +331,7 @@ export const HAProvider = ({
 
     try {
       // Close any existing connection before creating a new one to prevent connection leaks
-      if (currentConnectionRef.current) {
-        // Remove event listeners first to prevent memory leaks from closures
-        if (connectionCleanupRef.current) {
-          try {
-            connectionCleanupRef.current()
-          } catch (error) {
-            console.warn('Failed to cleanup connection event listeners:', error)
-          }
-          connectionCleanupRef.current = null
-        }
-
-        try {
-          currentConnectionRef.current.close()
-        } catch (error) {
-          console.warn('Failed to close existing connection:', error)
-        }
-        currentConnectionRef.current = null
-      }
+      cleanupConnection()
 
       const { connection: conn, auth } = await createAuthenticatedConnection({
         hassUrl: url,
@@ -413,19 +421,8 @@ export const HAProvider = ({
       clearTimeout(retryTimeoutRef.current)
     }
 
-    if (!mockMode && currentConnectionRef.current) {
-      // Remove event listeners first
-      if (connectionCleanupRef.current) {
-        try {
-          connectionCleanupRef.current()
-        } catch (error) {
-          console.warn('Failed to cleanup connection event listeners:', error)
-        }
-        connectionCleanupRef.current = null
-      }
-
-      currentConnectionRef.current.close()
-      currentConnectionRef.current = null
+    if (!mockMode) {
+      cleanupConnection()
     }
 
     dispatch({ type: 'MANUAL_RECONNECT' })
@@ -434,7 +431,7 @@ export const HAProvider = ({
       dispatch({ type: 'START_CONNECTING' })
       attemptConnection()
     }, 0)
-  }, [attemptConnection, mockMode])
+  }, [attemptConnection, mockMode, cleanupConnection])
 
   // Logout function that immediately closes connection
   const handleLogout = useCallback(() => {
@@ -458,19 +455,9 @@ export const HAProvider = ({
     visibilityRefreshState.current.retry.inProgress = false
 
     // Immediately close WebSocket connection
-    if (currentConnectionRef.current) {
-      // Remove event listeners first
-      if (connectionCleanupRef.current) {
-        try {
-          connectionCleanupRef.current()
-        } catch (error) {
-          console.warn('Failed to cleanup connection event listeners:', error)
-        }
-        connectionCleanupRef.current = null
-      }
-
-      currentConnectionRef.current.close()
-      currentConnectionRef.current = null
+    cleanupConnection()
+    if (currentConnectionRef.current === null) {
+      // Connection was cleaned up
       try {
         setStoreConnection(null)
       } catch (error) {
@@ -478,7 +465,7 @@ export const HAProvider = ({
       }
       dispatch({ type: 'DISCONNECTED' })
     }
-  }, [auth, setStoreConnection])
+  }, [auth, setStoreConnection, cleanupConnection])
 
   // Handle auto-retry for disconnections and errors
   useEffect(() => {
@@ -628,20 +615,7 @@ export const HAProvider = ({
       visibilityRefreshState.current.retry.timeouts.clear()
       visibilityRefreshState.current.retry.inProgress = false
 
-      if (currentConnectionRef.current) {
-        // Remove event listeners first
-        if (connectionCleanupRef.current) {
-          try {
-            connectionCleanupRef.current()
-          } catch (error) {
-            console.warn('Failed to cleanup connection event listeners:', error)
-          }
-          connectionCleanupRef.current = null
-        }
-
-        currentConnectionRef.current.close()
-        currentConnectionRef.current = null
-      }
+      cleanupConnection()
       currentAuthRef.current = null
       try {
         useStore.getState().clear()
