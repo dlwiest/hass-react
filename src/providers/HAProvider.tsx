@@ -402,7 +402,7 @@ export const HAProvider = ({
     } finally {
       isConnectingRef.current = false
     }
-  }, [url, token, authMode, redirectUri, mockMode, mockData, setStoreConnection])
+  }, [url, token, authMode, redirectUri, mockMode, mockData, setStoreConnection, cleanupConnection])
 
   // Start a connection attempt
   const connect = useCallback(() => {
@@ -456,15 +456,12 @@ export const HAProvider = ({
 
     // Immediately close WebSocket connection
     cleanupConnection()
-    if (currentConnectionRef.current === null) {
-      // Connection was cleaned up
-      try {
-        setStoreConnection(null)
-      } catch (error) {
-        console.warn('Failed to clear store connection:', error)
-      }
-      dispatch({ type: 'DISCONNECTED' })
+    try {
+      setStoreConnection(null)
+    } catch (error) {
+      console.warn('Failed to clear store connection:', error)
     }
+    dispatch({ type: 'DISCONNECTED' })
   }, [auth, setStoreConnection, cleanupConnection])
 
   // Handle auto-retry for disconnections and errors
