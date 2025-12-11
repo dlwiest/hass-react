@@ -296,6 +296,16 @@ export const HAProvider = ({
     }
 
     try {
+      // Close any existing connection before creating a new one to prevent connection leaks
+      if (currentConnectionRef.current) {
+        try {
+          currentConnectionRef.current.close()
+        } catch (error) {
+          console.warn('Failed to close existing connection:', error)
+        }
+        currentConnectionRef.current = null
+      }
+
       const { connection: conn, auth } = await createAuthenticatedConnection({
         hassUrl: url,
         token,
