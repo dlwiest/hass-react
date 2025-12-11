@@ -211,6 +211,7 @@ export const HAProvider = ({
   const retryTimeoutRef = useRef<NodeJS.Timeout>()
   const currentConnectionRef = useRef<Connection | null>(null)
   const currentAuthRef = useRef<Auth | null>(null)
+  const connectionCleanupRef = useRef<(() => void) | null>(null)
 
   // Grouped token refresh state
   const periodicRefreshState = useRef({
@@ -298,6 +299,16 @@ export const HAProvider = ({
     try {
       // Close any existing connection before creating a new one to prevent connection leaks
       if (currentConnectionRef.current) {
+        // Remove event listeners first to prevent memory leaks from closures
+        if (connectionCleanupRef.current) {
+          try {
+            connectionCleanupRef.current()
+          } catch (error) {
+            console.warn('Failed to cleanup connection event listeners:', error)
+          }
+          connectionCleanupRef.current = null
+        }
+
         try {
           currentConnectionRef.current.close()
         } catch (error) {
@@ -316,8 +327,8 @@ export const HAProvider = ({
       // Store auth object for token refresh
       currentAuthRef.current = auth
 
-      // Set up event listeners
-      conn.addEventListener('disconnected', () => {
+      // Set up event listeners with cleanup tracking
+      const handleDisconnected = () => {
         currentConnectionRef.current = null
         try {
           setStoreConnection(null)
@@ -325,20 +336,28 @@ export const HAProvider = ({
           console.warn('Failed to clear store connection:', error)
         }
         dispatch({ type: 'DISCONNECTED' })
-      })
+      }
 
-      // Ready event is for when connection is restored after temporary disconnect
-      conn.addEventListener('ready', () => {
+      const handleReady = () => {
         // Use READY_EVENT action - reducer will only accept if in valid state
         currentConnectionRef.current = conn
         setLastConnectedAt(new Date())
         dispatch({ type: 'READY_EVENT', connection: conn })
         try {
-        setStoreConnection(conn)
-      } catch (error) {
-        console.warn('Failed to set store connection:', error)
+          setStoreConnection(conn)
+        } catch (error) {
+          console.warn('Failed to set store connection:', error)
+        }
       }
-      })
+
+      conn.addEventListener('disconnected', handleDisconnected)
+      conn.addEventListener('ready', handleReady)
+
+      // Store cleanup function to remove event listeners
+      connectionCleanupRef.current = () => {
+        conn.removeEventListener('disconnected', handleDisconnected)
+        conn.removeEventListener('ready', handleReady)
+      }
 
       currentConnectionRef.current = conn
       setLastConnectedAt(new Date())
@@ -384,6 +403,16 @@ export const HAProvider = ({
     }
 
     if (!mockMode && currentConnectionRef.current) {
+      // Remove event listeners first
+      if (connectionCleanupRef.current) {
+        try {
+          connectionCleanupRef.current()
+        } catch (error) {
+          console.warn('Failed to cleanup connection event listeners:', error)
+        }
+        connectionCleanupRef.current = null
+      }
+
       currentConnectionRef.current.close()
       currentConnectionRef.current = null
     }
@@ -419,6 +448,16 @@ export const HAProvider = ({
 
     // Immediately close WebSocket connection
     if (currentConnectionRef.current) {
+      // Remove event listeners first
+      if (connectionCleanupRef.current) {
+        try {
+          connectionCleanupRef.current()
+        } catch (error) {
+          console.warn('Failed to cleanup connection event listeners:', error)
+        }
+        connectionCleanupRef.current = null
+      }
+
       currentConnectionRef.current.close()
       currentConnectionRef.current = null
       try {
@@ -579,6 +618,16 @@ export const HAProvider = ({
       visibilityRefreshState.current.retry.inProgress = false
 
       if (currentConnectionRef.current) {
+        // Remove event listeners first
+        if (connectionCleanupRef.current) {
+          try {
+            connectionCleanupRef.current()
+          } catch (error) {
+            console.warn('Failed to cleanup connection event listeners:', error)
+          }
+          connectionCleanupRef.current = null
+        }
+
         currentConnectionRef.current.close()
         currentConnectionRef.current = null
       }
