@@ -212,6 +212,7 @@ export const HAProvider = ({
   const currentConnectionRef = useRef<Connection | null>(null)
   const currentAuthRef = useRef<Auth | null>(null)
   const connectionCleanupRef = useRef<(() => void) | null>(null)
+  const isConnectingRef = useRef<boolean>(false)
 
   // Grouped token refresh state
   const periodicRefreshState = useRef({
@@ -261,6 +262,13 @@ export const HAProvider = ({
 
   // Async connection function
   const attemptConnection = useCallback(async () => {
+    // Prevent concurrent connection attempts to avoid race conditions
+    if (isConnectingRef.current) {
+      return
+    }
+    isConnectingRef.current = true
+
+    try {
     if (mockMode) {
       // Handle mock mode
       if (mockData) {
@@ -382,6 +390,9 @@ export const HAProvider = ({
       
       console.error(helpfulMessage)
       dispatch({ type: 'CONNECTION_ERROR', error })
+    }
+    } finally {
+      isConnectingRef.current = false
     }
   }, [url, token, authMode, redirectUri, mockMode, mockData, setStoreConnection])
 
