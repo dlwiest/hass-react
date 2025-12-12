@@ -212,7 +212,6 @@ export const HAProvider = ({
   const currentConnectionRef = useRef<Connection | null>(null)
   const currentAuthRef = useRef<Auth | null>(null)
   const connectionCleanupRef = useRef<(() => void) | null>(null)
-  const isConnectingRef = useRef<boolean>(false)
 
   // Grouped token refresh state
   const periodicRefreshState = useRef({
@@ -233,29 +232,28 @@ export const HAProvider = ({
     }
   })()
 
-  // Helper function to cleanup connection and event listeners
+  // Helper function to close connection and remove event listeners
+  // Note: home-assistant-js-websocket does NOT clean up listeners on close()
   const cleanupConnection = useCallback(() => {
-    if (!currentConnectionRef.current) {
-      return
-    }
-
-    // Remove event listeners first to prevent memory leaks from closures
+    // Always clean up event listeners first, even if connection is already null
     if (connectionCleanupRef.current) {
       try {
         connectionCleanupRef.current()
       } catch (error) {
-        console.warn('Failed to cleanup connection event listeners:', error)
+        console.warn('Failed to cleanup event listeners:', error)
       }
       connectionCleanupRef.current = null
     }
 
-    // Close the connection
-    try {
-      currentConnectionRef.current.close()
-    } catch (error) {
-      console.warn('Failed to close existing connection:', error)
+    // Close the connection if it exists
+    if (currentConnectionRef.current) {
+      try {
+        currentConnectionRef.current.close()
+      } catch (error) {
+        console.warn('Failed to close connection:', error)
+      }
+      currentConnectionRef.current = null
     }
-    currentConnectionRef.current = null
   }, [])
 
   // Auth state management
@@ -287,13 +285,6 @@ export const HAProvider = ({
 
   // Async connection function
   const attemptConnection = useCallback(async () => {
-    // Prevent concurrent connection attempts to avoid race conditions
-    if (isConnectingRef.current) {
-      return
-    }
-    isConnectingRef.current = true
-
-    try {
     if (mockMode) {
       // Handle mock mode
       if (mockData) {
@@ -398,9 +389,6 @@ export const HAProvider = ({
       
       console.error(helpfulMessage)
       dispatch({ type: 'CONNECTION_ERROR', error })
-    }
-    } finally {
-      isConnectingRef.current = false
     }
   }, [url, token, authMode, redirectUri, mockMode, mockData, setStoreConnection, cleanupConnection])
 
