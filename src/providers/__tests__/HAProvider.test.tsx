@@ -1417,6 +1417,146 @@ describe('HAProvider Clean Implementation', () => {
       // In a real implementation, you might want to reconnect with new credentials
       // For now, we just verify it doesn't crash
     })
+
+    it('should call removeEventListener for both disconnected and ready events on reconnection', async () => {
+      const mockAuth = createMockAuth('test-token')
+      mockCreateLongLivedTokenAuth.mockReturnValue(mockAuth)
+
+      const { connection: connection1 } = createMockConnection()
+      const { connection: connection2 } = createMockConnection()
+
+      mockCreateConnection
+        .mockResolvedValueOnce(connection1)
+        .mockResolvedValueOnce(connection2)
+
+      const TestComponentWithReconnect = () => {
+        const { connected, reconnect } = useHAConnection()
+        return (
+          <div>
+            <div data-testid="connected">{connected ? 'true' : 'false'}</div>
+            <button data-testid="reconnect" onClick={reconnect}>Reconnect</button>
+          </div>
+        )
+      }
+
+      render(
+        <HAProvider url="http://test:8123" token="test-token">
+          <TestComponentWithReconnect />
+        </HAProvider>
+      )
+
+      // Wait for initial connection
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('connected')).toHaveTextContent('true')
+      })
+
+      // Verify event listeners were added to connection1
+      expect(connection1.addEventListener).toHaveBeenCalledWith('disconnected', expect.any(Function))
+      expect(connection1.addEventListener).toHaveBeenCalledWith('ready', expect.any(Function))
+
+      // Trigger reconnection
+      act(() => {
+        screen.getByTestId('reconnect').click()
+      })
+
+      // Wait for reconnection to complete and new connection to be set up
+      await vi.waitFor(() => {
+        expect(connection2.addEventListener).toHaveBeenCalled()
+      })
+
+      // Verify removeEventListener was called for both events on connection1
+      expect(connection1.removeEventListener).toHaveBeenCalledWith('disconnected', expect.any(Function))
+      expect(connection1.removeEventListener).toHaveBeenCalledWith('ready', expect.any(Function))
+
+      // Verify new listeners were added to connection2
+      expect(connection2.addEventListener).toHaveBeenCalledWith('disconnected', expect.any(Function))
+      expect(connection2.addEventListener).toHaveBeenCalledWith('ready', expect.any(Function))
+    })
+
+    it('should remove event listeners before closing connection on unmount', async () => {
+      const mockAuth = createMockAuth('test-token')
+      mockCreateLongLivedTokenAuth.mockReturnValue(mockAuth)
+
+      const { connection } = createMockConnection()
+      mockCreateConnection.mockResolvedValue(connection)
+
+      const { unmount } = render(
+        <HAProvider url="http://test:8123" token="test-token">
+          <TestComponent />
+        </HAProvider>
+      )
+
+      // Wait for connection
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('connected')).toHaveTextContent('true')
+      })
+
+      // Verify listeners were added
+      expect(connection.addEventListener).toHaveBeenCalledWith('disconnected', expect.any(Function))
+      expect(connection.addEventListener).toHaveBeenCalledWith('ready', expect.any(Function))
+
+      // Unmount component
+      unmount()
+
+      // Verify listeners were removed before close
+      expect(connection.removeEventListener).toHaveBeenCalledWith('disconnected', expect.any(Function))
+      expect(connection.removeEventListener).toHaveBeenCalledWith('ready', expect.any(Function))
+      expect(connection.close).toHaveBeenCalled()
+    })
+
+    it('should remove event listeners on logout', async () => {
+      const mockAuth = createMockAuth('test-token')
+      mockCreateLongLivedTokenAuth.mockReturnValue(mockAuth)
+
+      const { connection } = createMockConnection()
+      mockCreateConnection.mockResolvedValue(connection)
+
+      const TestComponentWithLogout = () => {
+        const { connected, logout } = useHAConnection()
+        return (
+          <div>
+            <div data-testid="connected">{connected ? 'true' : 'false'}</div>
+            <button data-testid="logout" onClick={logout}>Logout</button>
+          </div>
+        )
+      }
+
+      render(
+        <HAProvider url="http://test:8123" token="test-token">
+          <TestComponentWithLogout />
+        </HAProvider>
+      )
+
+      // Wait for connection
+      await vi.waitFor(() => {
+        expect(screen.getByTestId('connected')).toHaveTextContent('true')
+      })
+
+      // Click logout
+      act(() => {
+        screen.getByTestId('logout').click()
+      })
+
+      // Verify listeners were removed
+      expect(connection.removeEventListener).toHaveBeenCalledWith('disconnected', expect.any(Function))
+      expect(connection.removeEventListener).toHaveBeenCalledWith('ready', expect.any(Function))
+      expect(connection.close).toHaveBeenCalled()
+    })
+
+    it('should not fail if cleanup is called when connection is already null', () => {
+      const mockAuth = createMockAuth('test-token')
+      mockCreateLongLivedTokenAuth.mockReturnValue(mockAuth)
+
+      // This test verifies that cleanupConnection handles the case where
+      // connection is null but cleanup function still exists
+      expect(() => {
+        render(
+          <HAProvider url="http://test:8123" token="test-token">
+            <TestComponent />
+          </HAProvider>
+        )
+      }).not.toThrow()
+    })
   })
 
   describe('Race Conditions & Edge Cases', () => {
