@@ -211,6 +211,7 @@ export const HAProvider = ({
   const retryTimeoutRef = useRef<NodeJS.Timeout>()
   const currentConnectionRef = useRef<Connection | null>(null)
   const currentAuthRef = useRef<Auth | null>(null)
+  const connectionCleanupRef = useRef<(() => void) | null>(null)
 
   // Grouped token refresh state
   const periodicRefreshState = useRef({
@@ -230,6 +231,30 @@ export const HAProvider = ({
       return () => {} // Fallback no-op function
     }
   })()
+
+  // Helper function to close connection and remove event listeners
+  // Note: home-assistant-js-websocket does NOT clean up listeners on close()
+  const cleanupConnection = useCallback(() => {
+    // Always clean up event listeners first, even if connection is already null
+    if (connectionCleanupRef.current) {
+      try {
+        connectionCleanupRef.current()
+      } catch (error) {
+        console.warn('Failed to cleanup event listeners:', error)
+      }
+      connectionCleanupRef.current = null
+    }
+
+    // Close the connection if it exists
+    if (currentConnectionRef.current) {
+      try {
+        currentConnectionRef.current.close()
+      } catch (error) {
+        console.warn('Failed to close connection:', error)
+      }
+      currentConnectionRef.current = null
+    }
+  }, [])
 
   // Auth state management
   const auth = useAuth(mockMode ? null : url, authMode)
@@ -296,6 +321,9 @@ export const HAProvider = ({
     }
 
     try {
+      // Close any existing connection and remove event listeners before creating a new one to prevent memory leaks
+      cleanupConnection()
+
       const { connection: conn, auth } = await createAuthenticatedConnection({
         hassUrl: url,
         token,
@@ -306,8 +334,8 @@ export const HAProvider = ({
       // Store auth object for token refresh
       currentAuthRef.current = auth
 
-      // Set up event listeners
-      conn.addEventListener('disconnected', () => {
+      // Set up event listeners with cleanup tracking
+      const handleDisconnected = () => {
         currentConnectionRef.current = null
         try {
           setStoreConnection(null)
@@ -315,20 +343,28 @@ export const HAProvider = ({
           console.warn('Failed to clear store connection:', error)
         }
         dispatch({ type: 'DISCONNECTED' })
-      })
+      }
 
-      // Ready event is for when connection is restored after temporary disconnect
-      conn.addEventListener('ready', () => {
+      const handleReady = () => {
         // Use READY_EVENT action - reducer will only accept if in valid state
         currentConnectionRef.current = conn
         setLastConnectedAt(new Date())
         dispatch({ type: 'READY_EVENT', connection: conn })
         try {
-        setStoreConnection(conn)
-      } catch (error) {
-        console.warn('Failed to set store connection:', error)
+          setStoreConnection(conn)
+        } catch (error) {
+          console.warn('Failed to set store connection:', error)
+        }
       }
-      })
+
+      conn.addEventListener('disconnected', handleDisconnected)
+      conn.addEventListener('ready', handleReady)
+
+      // Store cleanup function to remove event listeners
+      connectionCleanupRef.current = () => {
+        conn.removeEventListener('disconnected', handleDisconnected)
+        conn.removeEventListener('ready', handleReady)
+      }
 
       currentConnectionRef.current = conn
       setLastConnectedAt(new Date())
@@ -354,7 +390,7 @@ export const HAProvider = ({
       console.error(helpfulMessage)
       dispatch({ type: 'CONNECTION_ERROR', error })
     }
-  }, [url, token, authMode, redirectUri, mockMode, mockData, setStoreConnection])
+  }, [url, token, authMode, redirectUri, mockMode, mockData, setStoreConnection, cleanupConnection])
 
   // Start a connection attempt
   const connect = useCallback(() => {
@@ -373,9 +409,8 @@ export const HAProvider = ({
       clearTimeout(retryTimeoutRef.current)
     }
 
-    if (!mockMode && currentConnectionRef.current) {
-      currentConnectionRef.current.close()
-      currentConnectionRef.current = null
+    if (!mockMode) {
+      cleanupConnection()
     }
 
     dispatch({ type: 'MANUAL_RECONNECT' })
@@ -384,7 +419,7 @@ export const HAProvider = ({
       dispatch({ type: 'START_CONNECTING' })
       attemptConnection()
     }, 0)
-  }, [attemptConnection, mockMode])
+  }, [attemptConnection, mockMode, cleanupConnection])
 
   // Logout function that immediately closes connection
   const handleLogout = useCallback(() => {
@@ -408,17 +443,14 @@ export const HAProvider = ({
     visibilityRefreshState.current.retry.inProgress = false
 
     // Immediately close WebSocket connection
-    if (currentConnectionRef.current) {
-      currentConnectionRef.current.close()
-      currentConnectionRef.current = null
-      try {
-        setStoreConnection(null)
-      } catch (error) {
-        console.warn('Failed to clear store connection:', error)
-      }
-      dispatch({ type: 'DISCONNECTED' })
+    cleanupConnection()
+    try {
+      setStoreConnection(null)
+    } catch (error) {
+      console.warn('Failed to clear store connection:', error)
     }
-  }, [auth, setStoreConnection])
+    dispatch({ type: 'DISCONNECTED' })
+  }, [auth, setStoreConnection, cleanupConnection])
 
   // Handle auto-retry for disconnections and errors
   useEffect(() => {
@@ -568,10 +600,7 @@ export const HAProvider = ({
       visibilityRefreshState.current.retry.timeouts.clear()
       visibilityRefreshState.current.retry.inProgress = false
 
-      if (currentConnectionRef.current) {
-        currentConnectionRef.current.close()
-        currentConnectionRef.current = null
-      }
+      cleanupConnection()
       currentAuthRef.current = null
       try {
         useStore.getState().clear()
