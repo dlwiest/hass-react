@@ -321,7 +321,7 @@ export const HAProvider = ({
     }
 
     try {
-      // Close any existing connection before creating a new one to prevent connection leaks
+      // Close any existing connection and remove event listeners before creating a new one to prevent memory leaks
       cleanupConnection()
 
       const { connection: conn, auth } = await createAuthenticatedConnection({
