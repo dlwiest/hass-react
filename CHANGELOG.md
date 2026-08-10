@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Building a Gateway guide plus a runnable gateway example (`examples/transport-gateway`): an allowlisting Node server that owns the Home Assistant token and the matching browser transport
+
 ### Fixed
 - Mock mode now transitions media player state (play/pause/stop, volume, mute, source, shuffle, repeat, power) and legacy vacuum power (`turn_on`/`turn_off`); `media_player.toggle` correctly acts as a power toggle
 

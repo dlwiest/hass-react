@@ -106,70 +106,14 @@ Return an unsubscribe function. A transport may multiplex all subscribers over o
 
 `logout` is optional. Use it only if the application gateway maintains a browser session that can be invalidated.
 
-## Minimal Shape
+## Implementing a Transport
 
-This abbreviated example uses one event stream and an HTTP command endpoint:
+A working transport pairs with a gateway server, and the two have to agree on an application protocol. [Building a Gateway](/docs/advanced/building-a-gateway) walks through both halves with a runnable example: an SSE event stream plus an HTTP command endpoint on the server, and the matching `HATransport` in the browser.
 
-```ts
-import type {
-  HAConnection,
-  HATransport,
-  HATransportHandlers,
-} from 'hass-react'
+Two rules matter more than the protocol choice:
 
-export function createGatewayTransport(): HATransport {
-  let events: EventSource | null = null
-  const subscribers = new Map<string | undefined, Set<(event: unknown) => void>>()
-
-  const connection: HAConnection = {
-    async sendMessagePromise<T>(message: Record<string, unknown>): Promise<T> {
-      const response = await fetch('/ha-gateway/command', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(message),
-      })
-
-      if (!response.ok) throw new Error(`Gateway returned ${response.status}`)
-      return response.json() as Promise<T>
-    },
-
-    async subscribeEvents<T>(
-      callback: (event: T) => void,
-      eventType?: string
-    ): Promise<() => void> {
-      const callbacks = subscribers.get(eventType) ?? new Set()
-      callbacks.add(callback as (event: unknown) => void)
-      subscribers.set(eventType, callbacks)
-
-      return () => {
-        callbacks.delete(callback as (event: unknown) => void)
-      }
-    },
-  }
-
-  return {
-    async connect(handlers: HATransportHandlers) {
-      events = new EventSource('/ha-gateway/events')
-
-      events.onmessage = ({ data }) => {
-        const event = JSON.parse(data)
-        subscribers.get(event.event_type)?.forEach((callback) => callback(event))
-        subscribers.get(undefined)?.forEach((callback) => callback(event))
-      }
-
-      events.onerror = () => handlers.onDisconnected()
-      return connection
-    },
-
-    disconnect() {
-      events?.close()
-      events = null
-    },
-  }
-}
-```
-
-Production transports should wait for an explicit ready signal before resolving `connect`, handle duplicate disconnect notifications, and validate response bodies.
+- **Every `connect()` call must build an independent session.** HAProvider can run overlapping connect attempts (React StrictMode double-mounts, fast reconnect cycles) and disconnects the attempts it abandons. If sessions share an event stream or subscriber registry, a stale attempt's `disconnect()` tears down the live session.
+- **Report a lost channel once, then stop.** Resolve `connect()` only when the channel is actually ready, call `handlers.onDisconnected()` a single time on loss, and let HAProvider drive reconnection with its own backoff rather than retrying internally.
 
 ## Camera Media
 
