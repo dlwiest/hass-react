@@ -86,6 +86,12 @@ export function mockServiceCall(
       ))
       break
 
+    case 'media_player':
+      ({ state: newState, attributes: newAttributes } = mockMediaPlayerService(
+        service, currentState, newAttributes, params
+      ))
+      break
+
     default:
       // For unknown domains, just handle basic toggle/turn_on/turn_off
       ({ state: newState, attributes: newAttributes } = mockBasicService(
@@ -372,6 +378,18 @@ function mockVacuumService(
         attributes: { ...attributes, fan_speed: params.fan_speed as string }
       }
 
+    case 'turn_on':
+      return {
+        state: 'idle',
+        attributes: { ...attributes, status: 'Idle' }
+      }
+
+    case 'turn_off':
+      return {
+        state: 'off',
+        attributes: { ...attributes, status: 'Off' }
+      }
+
     case 'locate':
       return {
         state: currentState,
@@ -383,6 +401,77 @@ function mockVacuumService(
         state: 'cleaning',
         attributes: { ...attributes, status: 'Spot cleaning' }
       }
+
+    default:
+      return { state: currentState, attributes }
+  }
+}
+
+// Mock media-player-specific services
+function mockMediaPlayerService(
+  service: string,
+  currentState: string,
+  attributes: Record<string, unknown>,
+  params: Record<string, unknown>
+): MockStateTransition {
+  switch (service) {
+    case 'media_play':
+      return { state: 'playing', attributes }
+
+    case 'media_pause':
+      return { state: 'paused', attributes }
+
+    case 'media_stop':
+      return { state: 'idle', attributes }
+
+    case 'volume_set':
+      return {
+        state: currentState,
+        attributes: { ...attributes, volume_level: params.volume_level as number }
+      }
+
+    case 'volume_mute':
+      return {
+        state: currentState,
+        attributes: { ...attributes, is_volume_muted: params.is_volume_muted as boolean }
+      }
+
+    case 'media_play_pause':
+      return {
+        state: currentState === 'playing' ? 'paused' : 'playing',
+        attributes
+      }
+
+    case 'toggle':
+      // media_player.toggle is a power toggle in Home Assistant, not play/pause
+      return {
+        state: currentState === 'off' ? 'idle' : 'off',
+        attributes
+      }
+
+    case 'select_source':
+      return {
+        state: currentState,
+        attributes: { ...attributes, source: params.source as string }
+      }
+
+    case 'shuffle_set':
+      return {
+        state: currentState,
+        attributes: { ...attributes, shuffle: params.shuffle as boolean }
+      }
+
+    case 'repeat_set':
+      return {
+        state: currentState,
+        attributes: { ...attributes, repeat: params.repeat as string }
+      }
+
+    case 'turn_on':
+      return { state: 'idle', attributes }
+
+    case 'turn_off':
+      return { state: 'off', attributes }
 
     default:
       return { state: currentState, attributes }
