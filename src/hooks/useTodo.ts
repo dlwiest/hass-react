@@ -2,11 +2,15 @@ import { useEntity } from './useEntity'
 import { createDomainValidator } from '../utils/entityId'
 import type { TodoState, TodoAttributes, TodoItem } from '../types'
 import { TodoFeatures } from '../types'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { checkFeatures } from '../utils/features'
 import { FeatureNotSupportedError } from '../utils/errors'
 
 const validateTodoEntityId = createDomainValidator('todo', 'useTodo')
+interface TodoItemsResponse {
+  response?: Record<string, { items?: TodoItem[] }>
+}
+
 
 export function useTodo(entityId: string): TodoState {
   const normalizedEntityId = validateTodoEntityId(entityId)
@@ -15,6 +19,7 @@ export function useTodo(entityId: string): TodoState {
   
   const [items, setItems] = useState<TodoItem[]>([])
   const [isLoadingItems, setIsLoadingItems] = useState(false)
+  const fetchGeneration = useRef(0)
 
   const itemCount = state === 'unknown' ? 0 : parseInt(state, 10) || 0
   
@@ -28,54 +33,52 @@ export function useTodo(entityId: string): TodoState {
   
   const { addItem: supportsAddItem, removeItem: supportsRemoveItem, updateItem: supportsUpdateItem, clearCompleted: supportsClearCompleted } = features
 
-  // Fetch todo items when the component mounts or entity state changes
-  useEffect(() => {
-    const fetchItems = async () => {
-      if (!entity.isConnected || entity.error) return
-      
-      try {
-        setIsLoadingItems(true)
-        // Use the todo.get_items service to fetch items
-        const response = await callServiceWithResponse<{ response: Record<string, { items: TodoItem[] }> }>('todo', 'get_items', {
-          entity_id: normalizedEntityId
-        })
-        
-        // The service returns the items nested under response -> entity ID
-        if (response?.response?.[normalizedEntityId]?.items && Array.isArray(response.response[normalizedEntityId].items)) {
-          setItems(response.response[normalizedEntityId].items)
-        }
-      } catch (error) {
-        console.error('[useTodo] Failed to fetch todo items:', error)
-        setItems([])
-      } finally {
+  // Refresh items after mounting and after mutations. Only the newest request
+  // may update state, so a stale response cannot overwrite fresh items.
+  const refreshItems = useCallback(async () => {
+    const generation = ++fetchGeneration.current
+    setIsLoadingItems(true)
+
+    try {
+      const response = await callServiceWithResponse<TodoItemsResponse>('todo', 'get_items', {
+        entity_id: normalizedEntityId
+      })
+
+      if (generation !== fetchGeneration.current) return
+
+      const responseItems = response?.response?.[normalizedEntityId]?.items
+      setItems(Array.isArray(responseItems) ? responseItems : [])
+    } catch (error) {
+      if (generation !== fetchGeneration.current) return
+
+      console.error('[useTodo] Failed to fetch todo items:', error)
+      setItems([])
+    } finally {
+      if (generation === fetchGeneration.current) {
         setIsLoadingItems(false)
       }
     }
+  }, [normalizedEntityId, callServiceWithResponse])
 
-    fetchItems()
-  }, [normalizedEntityId, entity.isConnected, state, callServiceWithResponse])
+  useEffect(() => {
+    if (entity.isConnected && !entity.error) {
+      void refreshItems()
+    } else {
+      setIsLoadingItems(false)
+    }
 
-  // Sort items to prioritize unchecked items
-  const sortedItems = [...items].sort((a, b) => {
+    return () => {
+      fetchGeneration.current += 1
+    }
+  }, [entity.error, entity.isConnected, refreshItems])
+
+  // Sort items to prioritize unchecked items while preserving reference
+  // identity across unrelated entity renders.
+  const sortedItems = useMemo(() => [...items].sort((a, b) => {
     if (a.status === 'needs_action' && b.status === 'completed') return -1
     if (a.status === 'completed' && b.status === 'needs_action') return 1
     return 0
-  })
-
-  // Refresh items after any operation
-  const refreshItems = useCallback(async () => {
-    try {
-      const response = await callServiceWithResponse<{ response: Record<string, { items: TodoItem[] }> }>('todo', 'get_items', {
-        entity_id: normalizedEntityId
-      })
-      
-      if (response?.response?.[normalizedEntityId]?.items && Array.isArray(response.response[normalizedEntityId].items)) {
-        setItems(response.response[normalizedEntityId].items)
-      }
-    } catch (error) {
-      console.error('[useTodo] Failed to refresh items:', error)
-    }
-  }, [normalizedEntityId, callServiceWithResponse])
+  }), [items])
 
   // Add a new todo item
   const addItem = useCallback(async (summary: string) => {

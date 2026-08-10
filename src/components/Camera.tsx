@@ -1,4 +1,5 @@
-import { ReactNode } from 'react'
+import type * as React from 'react'
+import type { ReactNode } from 'react'
 import { useCamera } from '../hooks/useCamera'
 import type { CameraState } from '../types'
 import { StreamPlayer, StreamPlayerProps } from './Camera/StreamPlayer'
@@ -10,7 +11,7 @@ export interface CameraProps {
 }
 
 interface CameraComponent {
-  (props: CameraProps): JSX.Element
+  (props: CameraProps): React.JSX.Element
   StreamPlayer: typeof StreamPlayer
   Image: typeof Image
 }

@@ -160,11 +160,10 @@ describe('Token Storage Service', () => {
       expect(result).toBeNull()
     })
 
-    it('should return null and remove expired tokens', () => {
-      // Set up expired token
+    it('should remove an expired token that cannot be refreshed', () => {
       const expiredData = {
         [testUrl]: {
-          ...mockAuthData,
+          access_token: 'expired-access-token',
           expires_at: Date.now() - 1000, // Expired 1 second ago
           hassUrl: testUrl,
           created_at: 1000000
@@ -179,6 +178,23 @@ describe('Token Storage Service', () => {
         'hass-react-auth',
         JSON.stringify({}) // Data should be removed
       )
+    })
+
+    it('should retain an expired access token when it has a refresh token', () => {
+      const expiredData = {
+        [testUrl]: {
+          ...mockAuthData,
+          expires_at: Date.now() - 1000,
+          hassUrl: testUrl,
+          created_at: 1000000
+        }
+      }
+      mockLocalStorage.store['hass-react-auth'] = JSON.stringify(expiredData)
+
+      const result = loadAuthData(testUrl)
+
+      expect(result).toEqual(expiredData[testUrl])
+      expect(mockLocalStorage.setItem).not.toHaveBeenCalled()
     })
 
     it('should handle tokens without expiration date', () => {
@@ -315,11 +331,11 @@ describe('Token Storage Service', () => {
       expect(hasStoredAuth(testUrl)).toBe(false)
     })
 
-    it('should return false when auth data is expired', () => {
+    it('should return false when unrefreshable auth data is expired', () => {
       const expiredData = {
         [testUrl]: {
-          ...mockAuthData,
-          expires_at: Date.now() - 1000, // Expired
+          access_token: 'expired-access-token',
+          expires_at: Date.now() - 1000,
           hassUrl: testUrl,
           created_at: 1000000
         }
@@ -327,6 +343,20 @@ describe('Token Storage Service', () => {
       mockLocalStorage.store['hass-react-auth'] = JSON.stringify(expiredData)
 
       expect(hasStoredAuth(testUrl)).toBe(false)
+    })
+
+    it('should return true when expired auth data can be refreshed', () => {
+      const expiredData = {
+        [testUrl]: {
+          ...mockAuthData,
+          expires_at: Date.now() - 1000,
+          hassUrl: testUrl,
+          created_at: 1000000
+        }
+      }
+      mockLocalStorage.store['hass-react-auth'] = JSON.stringify(expiredData)
+
+      expect(hasStoredAuth(testUrl)).toBe(true)
     })
 
     it('should return true when auth data has no expiration', () => {
@@ -394,6 +424,25 @@ describe('Token Storage Service', () => {
         saveAuthData(testUrl, mockAuthData)
         expect(hasStoredAuth(testUrl)).toBe(true)
       }).not.toThrow()
+    })
+
+    it.each([
+      null,
+      5,
+      'invalid-root',
+      []
+    ])('should recover when stored JSON is not a plain object: %j', invalidStoredValue => {
+      mockLocalStorage.store['hass-react-auth'] = JSON.stringify(invalidStoredValue)
+
+      saveAuthData(testUrl, mockAuthData)
+
+      expect(JSON.parse(mockLocalStorage.store['hass-react-auth'])).toEqual({
+        [testUrl]: {
+          ...mockAuthData,
+          hassUrl: testUrl,
+          created_at: 1000000
+        }
+      })
     })
   })
 })

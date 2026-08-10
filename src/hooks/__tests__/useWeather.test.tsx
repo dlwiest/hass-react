@@ -206,7 +206,7 @@ describe('useWeather', () => {
       expect(result.current.temperature).toBeNull()
     })
 
-    it('should use default temperature unit when not specified', () => {
+    it('should leave temperature unit undefined when not specified', () => {
       const attributes = {
         temperature: 72.5
       }
@@ -214,7 +214,7 @@ describe('useWeather', () => {
 
       const { result } = renderHook(() => useWeather('weather.test'))
 
-      expect(result.current.temperatureUnit).toBe('°F')
+      expect(result.current.temperatureUnit).toBeUndefined()
     })
 
     it('should handle apparent temperature', () => {
@@ -274,7 +274,7 @@ describe('useWeather', () => {
       expect(result.current.windSpeedUnit).toBe('mph')
     })
 
-    it('should use default wind speed unit when not specified', () => {
+    it('should leave wind speed unit undefined when not specified', () => {
       const attributes = {
         wind_speed: 12.3
       }
@@ -282,7 +282,7 @@ describe('useWeather', () => {
 
       const { result } = renderHook(() => useWeather('weather.test'))
 
-      expect(result.current.windSpeedUnit).toBe('mph')
+      expect(result.current.windSpeedUnit).toBeUndefined()
     })
 
     it('should handle missing wind data', () => {
@@ -340,7 +340,7 @@ describe('useWeather', () => {
       expect(result.current.pressureUnit).toBe('inHg')
     })
 
-    it('should use default pressure unit when not specified', () => {
+    it('should leave pressure unit undefined when not specified', () => {
       const attributes = {
         pressure: 29.92
       }
@@ -348,7 +348,7 @@ describe('useWeather', () => {
 
       const { result } = renderHook(() => useWeather('weather.test'))
 
-      expect(result.current.pressureUnit).toBe('inHg')
+      expect(result.current.pressureUnit).toBeUndefined()
     })
 
     it('should return humidity percentage', () => {
@@ -412,7 +412,7 @@ describe('useWeather', () => {
       expect(result.current.visibilityUnit).toBe('mi')
     })
 
-    it('should use default visibility unit when not specified', () => {
+    it('should leave visibility unit undefined when not specified', () => {
       const attributes = {
         visibility: 10
       }
@@ -420,7 +420,7 @@ describe('useWeather', () => {
 
       const { result } = renderHook(() => useWeather('weather.test'))
 
-      expect(result.current.visibilityUnit).toBe('mi')
+      expect(result.current.visibilityUnit).toBeUndefined()
     })
 
     it('should return cloud coverage percentage', () => {
@@ -458,13 +458,13 @@ describe('useWeather', () => {
       expect(result.current.precipitationUnit).toBe('mm')
     })
 
-    it('should use default precipitation unit when not specified', () => {
+    it('should leave precipitation unit undefined when not specified', () => {
       const attributes = {}
       mockUseEntity.mockReturnValue(createMockWeatherEntity('rainy', attributes))
 
       const { result } = renderHook(() => useWeather('weather.test'))
 
-      expect(result.current.precipitationUnit).toBe('in')
+      expect(result.current.precipitationUnit).toBeUndefined()
     })
 
     it('should handle precipitation unit in inches', () => {
@@ -529,13 +529,13 @@ describe('useWeather', () => {
 
       expect(result.current.condition).toBe('sunny')
       expect(result.current.temperature).toBe(68)
-      expect(result.current.temperatureUnit).toBe('°F')
+      expect(result.current.temperatureUnit).toBeUndefined()
       expect(result.current.humidity).toBeNull()
       expect(result.current.pressure).toBeNull()
       expect(result.current.windSpeed).toBeNull()
     })
 
-    it('should handle completely empty attributes with defaults', () => {
+    it('should handle completely empty attributes without invented units', () => {
       const attributes = {}
       mockUseEntity.mockReturnValue(createMockWeatherEntity('sunny', attributes))
 
@@ -543,15 +543,15 @@ describe('useWeather', () => {
 
       expect(result.current.condition).toBe('sunny')
       expect(result.current.temperature).toBeNull()
-      expect(result.current.temperatureUnit).toBe('°F')
+      expect(result.current.temperatureUnit).toBeUndefined()
       expect(result.current.humidity).toBeNull()
       expect(result.current.pressure).toBeNull()
-      expect(result.current.pressureUnit).toBe('inHg')
+      expect(result.current.pressureUnit).toBeUndefined()
       expect(result.current.windSpeed).toBeNull()
-      expect(result.current.windSpeedUnit).toBe('mph')
+      expect(result.current.windSpeedUnit).toBeUndefined()
       expect(result.current.visibility).toBeNull()
-      expect(result.current.visibilityUnit).toBe('mi')
-      expect(result.current.precipitationUnit).toBe('in')
+      expect(result.current.visibilityUnit).toBeUndefined()
+      expect(result.current.precipitationUnit).toBeUndefined()
     })
   })
 

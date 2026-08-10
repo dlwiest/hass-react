@@ -82,19 +82,22 @@ function generateMockCalendarEvents(): MockCalendarEvent[] {
   ]
 }
 
-// Store mock todo items
-export const mockTodoItems: Record<string, MockTodoItem[]> = {
-  'todo.shopping_list': [
-    { uid: 'shop-1', summary: 'Buy milk', status: 'needs_action' },
-    { uid: 'shop-2', summary: 'Get bread', status: 'completed' }
-  ],
-  'todo.weekend_projects': [
-    { uid: 'proj-1', summary: 'Paint fence', status: 'needs_action' },
-    { uid: 'proj-2', summary: 'Fix garage door', status: 'completed' }
-  ]
+// Create fresh stores for each mock connection so mutations cannot leak across mounts or tests
+export function createMockTodoItems(): Record<string, MockTodoItem[]> {
+  return {
+    'todo.shopping_list': [
+      { uid: 'shop-1', summary: 'Buy milk', status: 'needs_action' },
+      { uid: 'shop-2', summary: 'Get bread', status: 'completed' }
+    ],
+    'todo.weekend_projects': [
+      { uid: 'proj-1', summary: 'Paint fence', status: 'needs_action' },
+      { uid: 'proj-2', summary: 'Fix garage door', status: 'completed' }
+    ]
+  }
 }
 
-// Store mock calendar events (generated dynamically)
-export const mockCalendarEvents: Record<string, MockCalendarEvent[]> = {
-  'calendar.personal': generateMockCalendarEvents()
+export function createMockCalendarEvents(): Record<string, MockCalendarEvent[]> {
+  return {
+    'calendar.personal': generateMockCalendarEvents()
+  }
 }

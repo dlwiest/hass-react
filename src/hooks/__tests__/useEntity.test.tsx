@@ -193,6 +193,21 @@ describe('useEntity', () => {
       expect(result.current.isUnavailable).toBe(false)
     })
 
+    it('should preserve timestamp Date references when wire values are unchanged', () => {
+      const entityId = 'light.living_room'
+      const entity = createMockEntity(entityId)
+      mockEntities.set(entityId, entity)
+
+      const { result, rerender } = renderHook(() => useEntity(entityId), { wrapper: TestWrapper })
+      const lastChanged = result.current.lastChanged
+      const lastUpdated = result.current.lastUpdated
+
+      rerender()
+
+      expect(result.current.lastChanged).toBe(lastChanged)
+      expect(result.current.lastUpdated).toBe(lastUpdated)
+    })
+
     it('should return default values when entity does not exist', () => {
       const entityId = 'light.nonexistent'
 
@@ -204,6 +219,20 @@ describe('useEntity', () => {
       expect(result.current.lastChanged).toBeInstanceOf(Date)
       expect(result.current.lastUpdated).toBeInstanceOf(Date)
       expect(result.current.isUnavailable).toBe(false) // unknown !== 'unavailable'
+    })
+
+    it('should preserve missing-entity timestamp references across renders', () => {
+      const { result, rerender } = renderHook(
+        () => useEntity('light.still_missing'),
+        { wrapper: TestWrapper }
+      )
+      const lastChanged = result.current.lastChanged
+      const lastUpdated = result.current.lastUpdated
+
+      rerender()
+
+      expect(result.current.lastChanged).toBe(lastChanged)
+      expect(result.current.lastUpdated).toBe(lastUpdated)
     })
 
     it('should detect unavailable state correctly', () => {

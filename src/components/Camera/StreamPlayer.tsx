@@ -1,5 +1,6 @@
-import { useRef, useEffect, CSSProperties } from 'react'
+import { useRef, useEffect, useState, CSSProperties } from 'react'
 import type { StreamState } from '../../types'
+import { Image } from './Image'
 
 export interface StreamPlayerProps {
   stream: StreamState
@@ -8,6 +9,7 @@ export interface StreamPlayerProps {
   autoPlay?: boolean
   muted?: boolean
   controls?: boolean
+  onError?: (error: Error) => void
 }
 
 export function StreamPlayer({
@@ -16,40 +18,75 @@ export function StreamPlayer({
   className,
   autoPlay = true,
   muted = true,
-  controls = true
+  controls = true,
+  onError
 }: StreamPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const onErrorRef = useRef(onError)
+  const [hasPlaybackError, setHasPlaybackError] = useState(false)
+
+  onErrorRef.current = onError
+
+  useEffect(() => {
+    setHasPlaybackError(false)
+  }, [stream.isActive, stream.url, stream.type])
 
   // Handle stream URL changes and playback
   useEffect(() => {
-    if (!videoRef.current) return
+    if (
+      !videoRef.current ||
+      !stream.isActive ||
+      !stream.url ||
+      stream.type === 'mjpeg' ||
+      hasPlaybackError
+    ) {
+      return
+    }
 
     const video = videoRef.current
-    const { isActive, url, type } = stream
-
-    if (isActive && url) {
-      if (type === 'hls') {
-        // For HLS streams, use native video if supported
-        if (video.canPlayType('application/vnd.apple.mpegurl')) {
-          video.src = url
-          video.play().catch(err => console.error('HLS playback error:', err))
-        } else {
-          console.warn('HLS not natively supported. Consider adding hls.js library.')
-          video.src = url
-          video.play().catch(err => console.error('HLS playback error:', err))
-        }
-      } else if (type === 'mjpeg') {
-        video.src = url
-        video.play().catch(err => console.error('MJPEG playback error:', err))
-      }
-    } else {
-      // Clear video when stream stops
-      video.pause()
-      video.src = ''
+    const reportError = (error: unknown) => {
+      const playbackError = error instanceof Error
+        ? error
+        : new Error('Camera stream playback failed')
+      onErrorRef.current?.(playbackError)
     }
-  }, [stream.isActive, stream.url, stream.type])
+    const handleVideoError = () => {
+      reportError(new Error(video.error?.message || 'Camera stream playback failed'))
+      setHasPlaybackError(true)
+    }
+    const cleanup = () => {
+      video.removeEventListener('error', handleVideoError)
+      video.pause()
+      video.removeAttribute('src')
+      video.load()
+    }
 
-  if (!stream.isActive || !stream.url) {
+    video.addEventListener('error', handleVideoError)
+
+    if (stream.type === 'hls') {
+      if (!video.canPlayType('application/vnd.apple.mpegurl')) {
+        const error = new Error('Native HLS playback is not supported in this browser')
+        console.warn('HLS not natively supported. Consider adding hls.js library.')
+        reportError(error)
+        setHasPlaybackError(true)
+        return cleanup
+      }
+
+      video.src = stream.url
+      if (autoPlay) {
+        video.play().catch(error => {
+          if (error instanceof Error && error.name === 'AbortError') {
+            return
+          }
+          reportError(error)
+        })
+      }
+    }
+
+    return cleanup
+  }, [autoPlay, hasPlaybackError, stream.isActive, stream.url, stream.type])
+
+  if (!stream.isActive || !stream.url || hasPlaybackError) {
     return null
   }
 
@@ -64,11 +101,12 @@ export function StreamPlayer({
   // Use img element for MJPEG streams (more efficient)
   if (stream.type === 'mjpeg') {
     return (
-      <img
-        src={stream.url}
+      <Image
+        url={stream.url}
         alt="Camera stream"
         style={defaultStyle}
         className={className}
+        onError={() => onErrorRef.current?.(new Error('MJPEG stream failed to load'))}
       />
     )
   }

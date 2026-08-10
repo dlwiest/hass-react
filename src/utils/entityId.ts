@@ -1,3 +1,5 @@
+const warnedWrongDomainEntityIds = new Set<string>()
+
 interface DomainValidationOptions {
   warnOnWrongDomain?: boolean
   hookName?: string
@@ -13,7 +15,12 @@ export function validateAndNormalizeDomain(
 
   // If entityId already contains domain, validate it
   if (entityId.includes('.')) {
-    if (warnOnWrongDomain && !entityId.startsWith(`${expectedDomain}.`)) {
+    if (
+      warnOnWrongDomain &&
+      !entityId.startsWith(`${expectedDomain}.`) &&
+      !warnedWrongDomainEntityIds.has(entityId)
+    ) {
+      warnedWrongDomainEntityIds.add(entityId)
       const [actualDomain] = entityId.split('.')
       const hookPrefix = hookName ? `${hookName}: ` : ''
       console.warn(

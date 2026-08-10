@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import type { Auth } from 'home-assistant-js-websocket'
 
 const { 
   mockGetAuth,
@@ -25,7 +26,9 @@ vi.mock('home-assistant-js-websocket', () => ({
   getAuth: mockGetAuth,
   createConnection: mockCreateConnection,
   createLongLivedTokenAuth: mockCreateLongLivedTokenAuth,
-  Auth: mockAuth
+  Auth: mockAuth,
+  ERR_CANNOT_CONNECT: 1,
+  ERR_INVALID_AUTH: 2
 }))
 
 // Mock tokenStorage
@@ -129,15 +132,23 @@ describe('OAuth Auth Service', () => {
 
   describe('handleOAuthCallback', () => {
     beforeEach(() => {
-      // Mock successful getAuth
+      // Mirror getAuth's real behavior: it saves initial tokens through saveTokens
       const mockAuthResult = {
         data: {
+          hassUrl: 'http://homeassistant.local:8123',
+          clientId: 'http://localhost:3000',
           access_token: 'test-access-token',
           refresh_token: 'test-refresh-token',
-          expires: Date.now() + 3600000 // 1 hour from now
+          expires: Date.now() + 3600000, // 1 hour from now
+          expires_in: 3600
         }
       }
-      mockGetAuth.mockResolvedValue(mockAuthResult)
+      mockGetAuth.mockImplementation(async (options: {
+        saveTokens?: (data: typeof mockAuthResult.data) => void
+      }) => {
+        options.saveTokens?.(mockAuthResult.data)
+        return mockAuthResult
+      })
     })
 
     it('should handle successful OAuth callback', async () => {
@@ -155,6 +166,31 @@ describe('OAuth Auth Service', () => {
         client_id: 'http://localhost:3000'
       })
       expect(result).toBeDefined()
+    })
+
+    it('should persist tokens saved after an OAuth refresh', async () => {
+      mockWindow.location.search = '?code=test-code&state=test-state'
+      window.sessionStorage.getItem = vi.fn().mockReturnValue('test-state')
+
+      await handleOAuthCallback('http://homeassistant.local:8123')
+
+      const saveTokens = mockGetAuth.mock.calls[0][0].saveTokens
+      mockSaveAuthData.mockClear()
+      saveTokens({
+        hassUrl: 'http://homeassistant.local:8123',
+        clientId: 'http://localhost:3000',
+        access_token: 'refreshed-access-token',
+        refresh_token: 'test-refresh-token',
+        expires: 5000000,
+        expires_in: 3600
+      })
+
+      expect(mockSaveAuthData).toHaveBeenCalledWith('http://homeassistant.local:8123', {
+        access_token: 'refreshed-access-token',
+        refresh_token: 'test-refresh-token',
+        expires_at: 5000000,
+        client_id: 'http://localhost:3000'
+      })
     })
 
     it('should handle access_denied error', async () => {
@@ -255,17 +291,42 @@ describe('OAuth Auth Service', () => {
   })
 
   describe('logout', () => {
-    it('should remove stored auth data', () => {
-      logout('http://homeassistant.local:8123')
+    it('should remove stored auth data and OAuth session flags', async () => {
+      await logout('http://homeassistant.local:8123')
+
+      expect(mockRemoveAuthData).toHaveBeenCalledWith('http://homeassistant.local:8123')
+      expect(window.sessionStorage.removeItem).toHaveBeenCalledWith('hass-oauth-state')
+      expect(window.sessionStorage.removeItem).toHaveBeenCalledWith('hass-oauth-redirecting')
+    })
+
+    it('should revoke reachable auth before clearing local data', async () => {
+      const revoke = vi.fn().mockResolvedValue(undefined)
+      // This test double only exercises logout's revoke boundary.
+      const auth = { revoke } as unknown as Auth
+
+      await logout('http://homeassistant.local:8123', auth)
+
+      expect(revoke).toHaveBeenCalledOnce()
+      expect(revoke.mock.invocationCallOrder[0])
+        .toBeLessThan(mockRemoveAuthData.mock.invocationCallOrder[0])
+    })
+
+    it('should clear local data when revocation fails', async () => {
+      vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const revoke = vi.fn().mockRejectedValue(new Error('Revoke failed'))
+      // This test double only exercises logout's revoke boundary.
+      const auth = { revoke } as unknown as Auth
+
+      await expect(logout('http://homeassistant.local:8123', auth)).resolves.toBeUndefined()
 
       expect(mockRemoveAuthData).toHaveBeenCalledWith('http://homeassistant.local:8123')
     })
 
-    it('should clean up OAuth callback parameters from URL', () => {
+    it('should clean up OAuth callback parameters from URL', async () => {
       mockWindow.location.href = 'http://localhost:3000/?code=test-code&state=test-state'
       mockWindow.location.search = '?code=test-code&state=test-state'
 
-      logout('http://homeassistant.local:8123')
+      await logout('http://homeassistant.local:8123')
 
       expect(window.history.replaceState).toHaveBeenCalledWith(
         {},
@@ -274,10 +335,10 @@ describe('OAuth Auth Service', () => {
       )
     })
 
-    it('should not modify URL when no OAuth parameters are present', () => {
+    it('should not modify URL when no OAuth parameters are present', async () => {
       mockWindow.location.search = '?some=other&params=here'
 
-      logout('http://homeassistant.local:8123')
+      await logout('http://homeassistant.local:8123')
 
       expect(window.history.replaceState).not.toHaveBeenCalled()
     })
@@ -333,6 +394,32 @@ describe('OAuth Auth Service', () => {
         expect(result).toBe(mockAuth)
       })
 
+      it('should share one refresh across concurrent callers', async () => {
+        let resolveRefresh!: () => void
+        const refreshResult = new Promise<void>(resolve => {
+          resolveRefresh = resolve
+        })
+        const refreshAccessToken = vi.fn().mockReturnValue(refreshResult)
+        // Only the token-expiry and refresh fields are relevant to this unit.
+        const mockAuth = {
+          expired: true,
+          data: {
+            hassUrl: 'http://homeassistant.local:8123',
+            expires: Date.now() - 1000
+          },
+          refreshAccessToken
+        } as unknown as Auth
+
+        const firstRefresh = refreshTokenIfNeeded(mockAuth)
+        const secondRefresh = refreshTokenIfNeeded(mockAuth)
+
+        expect(firstRefresh).toBe(secondRefresh)
+        expect(refreshAccessToken).toHaveBeenCalledOnce()
+
+        resolveRefresh()
+        await expect(Promise.all([firstRefresh, secondRefresh])).resolves.toEqual([mockAuth, mockAuth])
+      })
+
       it('should not refresh token when not expiring', async () => {
         const mockAuth = {
           expired: false,
@@ -357,6 +444,25 @@ describe('OAuth Auth Service', () => {
           type: 'auth_expired',
           userMessage: 'Your authentication has expired. Please sign in again.'
         })
+      })
+
+      it('should purge stored auth when refresh is rejected as invalid_grant', async () => {
+        const refreshAccessToken = vi.fn().mockRejectedValue(2)
+        // Only the token-expiry and refresh fields are relevant to this unit.
+        const mockAuth = {
+          expired: true,
+          data: {
+            hassUrl: 'http://homeassistant.local:8123',
+            expires: Date.now() - 1000
+          },
+          refreshAccessToken
+        } as unknown as Auth
+
+        await expect(refreshTokenIfNeeded(mockAuth)).rejects.toMatchObject({
+          code: 'invalid_grant',
+          type: 'auth_expired'
+        })
+        expect(mockRemoveAuthData).toHaveBeenCalledWith('http://homeassistant.local:8123')
       })
 
       it('should respect custom buffer time parameter', async () => {
@@ -453,14 +559,20 @@ describe('OAuth Auth Service', () => {
 
       const mockAuthResult = {
         data: {
+          hassUrl: 'http://homeassistant.local:8123',
+          clientId: 'http://localhost:3000',
           access_token: 'callback-token',
           refresh_token: 'callback-refresh',
-          expires: Date.now() + 3600000
+          expires: Date.now() + 3600000,
+          expires_in: 3600
         }
       }
       const mockConnectionResult = { close: vi.fn() }
 
-      mockGetAuth.mockResolvedValue(mockAuthResult)
+      mockGetAuth.mockImplementation(async options => {
+        options.saveTokens(mockAuthResult.data)
+        return mockAuthResult
+      })
       mockCreateConnection.mockResolvedValue(mockConnectionResult)
 
       const result = await createAuthenticatedConnection({
@@ -476,6 +588,124 @@ describe('OAuth Auth Service', () => {
         client_id: 'http://localhost:3000'
       })
       expect(result).toEqual({ connection: mockConnectionResult, auth: mockAuthResult })
+    })
+
+    it('should retain an expired access token when a refresh token is available', async () => {
+      const storedAuth = {
+        hassUrl: 'http://homeassistant.local:8123',
+        access_token: 'expired-access-token',
+        refresh_token: 'valid-refresh-token',
+        expires_at: Date.now() - 1000,
+        created_at: Date.now() - 3600000
+      }
+      const mockAuthResult = {
+        data: storedAuth,
+        expired: true,
+        refreshAccessToken: vi.fn()
+      }
+      const mockConnectionResult = { close: vi.fn() }
+      mockLoadAuthData.mockReturnValue(storedAuth)
+      mockAuth.mockReturnValue(mockAuthResult)
+      mockCreateConnection.mockResolvedValue(mockConnectionResult)
+
+      await createAuthenticatedConnection({
+        hassUrl: 'http://homeassistant.local:8123',
+        authMode: 'oauth'
+      })
+
+      expect(mockAuth).toHaveBeenCalled()
+      expect(mockRemoveAuthData).not.toHaveBeenCalled()
+    })
+
+    it('should floor stored token expiry after converting milliseconds to seconds', async () => {
+      vi.spyOn(Date, 'now').mockReturnValue(1001)
+      const storedAuth = {
+        hassUrl: 'http://homeassistant.local:8123',
+        access_token: 'stored-token',
+        refresh_token: 'stored-refresh',
+        expires_at: 2500,
+        created_at: 1
+      }
+      const mockAuthResult = {
+        data: storedAuth,
+        expired: false,
+        refreshAccessToken: vi.fn()
+      }
+      mockLoadAuthData.mockReturnValue(storedAuth)
+      mockAuth.mockReturnValue(mockAuthResult)
+      mockCreateConnection.mockResolvedValue({ close: vi.fn() })
+
+      await createAuthenticatedConnection({
+        hassUrl: 'http://homeassistant.local:8123',
+        authMode: 'oauth'
+      })
+
+      expect(mockAuth).toHaveBeenCalledWith(
+        expect.objectContaining({ expires_in: 1 }),
+        expect.any(Function)
+      )
+    })
+
+    it('should map ERR_INVALID_AUTH to invalid_credentials', async () => {
+      mockCreateLongLivedTokenAuth.mockReturnValue({
+        data: { access_token: 'test-token' }
+      })
+      mockCreateConnection.mockRejectedValue(2)
+
+      await expect(createAuthenticatedConnection({
+        hassUrl: 'http://homeassistant.local:8123',
+        token: 'test-token',
+        authMode: 'auto'
+      })).rejects.toMatchObject({
+        code: 'invalid_credentials',
+        message: 'Home Assistant rejected the authentication credentials',
+        type: 'invalid_credentials'
+      })
+    })
+
+    it('should map ERR_CANNOT_CONNECT to network', async () => {
+      mockCreateLongLivedTokenAuth.mockReturnValue({
+        data: { access_token: 'test-token' }
+      })
+      mockCreateConnection.mockRejectedValue(1)
+
+      await expect(createAuthenticatedConnection({
+        hassUrl: 'http://homeassistant.local:8123',
+        token: 'test-token',
+        authMode: 'auto'
+      })).rejects.toMatchObject({
+        code: 'network',
+        message: 'Unable to connect to Home Assistant',
+        type: 'network'
+      })
+    })
+
+    it('should preserve Error instances from createConnection', async () => {
+      const connectionError = new Error('WebSocket handshake failed')
+      mockCreateLongLivedTokenAuth.mockReturnValue({
+        data: { access_token: 'test-token' }
+      })
+      mockCreateConnection.mockRejectedValue(connectionError)
+
+      await expect(createAuthenticatedConnection({
+        hassUrl: 'http://homeassistant.local:8123',
+        token: 'test-token',
+        authMode: 'auto'
+      })).rejects.toBe(connectionError)
+    })
+
+    it('should mark an OAuth navigation error as redirecting', async () => {
+      mockLoadAuthData.mockReturnValue(null)
+      window.sessionStorage.getItem = vi.fn().mockReturnValue(null)
+
+      await expect(createAuthenticatedConnection({
+        hassUrl: 'http://homeassistant.local:8123',
+        authMode: 'oauth'
+      })).rejects.toMatchObject({
+        type: 'auth_expired',
+        message: 'Redirecting to authentication',
+        redirecting: true
+      })
     })
   })
 })

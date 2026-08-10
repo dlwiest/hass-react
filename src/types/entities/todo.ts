@@ -33,5 +33,6 @@ export const TodoFeatures = {
   SUPPORT_ADD_ITEM: 1,
   SUPPORT_REMOVE_ITEM: 2,
   SUPPORT_UPDATE_ITEM: 4,
-  SUPPORT_CLEAR_COMPLETED: 8,
+  // HA remove_completed_items requires DELETE_TODO_ITEM.
+  SUPPORT_CLEAR_COMPLETED: 2,
 } as const

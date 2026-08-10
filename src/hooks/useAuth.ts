@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import type { AuthState, AuthError, AuthConfig } from '../types/auth'
 import { hasStoredAuth, loadAuthData } from '../services/tokenStorage'
 import { logout as authLogout, isOAuthCallback } from '../services/auth'
@@ -42,10 +42,34 @@ export function useAuth(hassUrl: string | null, authMode: AuthConfig['authMode']
     updateAuthState({ isLoading: true, error: null })
 
     try {
-      // Check if we have stored auth or this is an OAuth callback
+      const urlParams = typeof window === 'undefined'
+        ? new URLSearchParams()
+        : new URLSearchParams(window.location.search)
+      const callbackError = urlParams.get('error')
+
+      if (callbackError) {
+        const errorDescription = urlParams.get('error_description')
+        updateAuthState({
+          isAuthenticated: false,
+          isLoading: false,
+          error: {
+            code: callbackError,
+            message: errorDescription || callbackError,
+            userMessage: errorDescription || 'Home Assistant authentication was denied.',
+            type: 'oauth_cancelled',
+            recoverable: true,
+            retryAction: 'retry_auth'
+          },
+          authMode: 'oauth',
+          hassUrl
+        })
+        return
+      }
+
+      // isOAuthCallback also recognizes error callbacks, which were handled above.
       const hasStored = hasStoredAuth(hassUrl)
       const isCallback = isOAuthCallback()
-      
+
       if (hasStored || isCallback) {
         // Verify the stored auth is still valid
         const storedAuth = loadAuthData(hassUrl)
@@ -118,24 +142,25 @@ export function useAuth(hassUrl: string | null, authMode: AuthConfig['authMode']
 
   // Set authenticated state
   const setAuthenticated = useCallback((authenticated: boolean) => {
-    updateAuthState({ 
-      isAuthenticated: authenticated, 
+    setAuthState((previous) => ({
+      ...previous,
+      isAuthenticated: authenticated,
       isLoading: false,
-      error: authenticated ? null : authState.error
-    })
-  }, [updateAuthState, authState.error])
+      error: authenticated ? null : previous.error
+    }))
+  }, [])
 
   // Check auth on mount and when hassUrl changes
   useEffect(() => {
     checkAuth()
   }, [checkAuth])
 
-  return {
+  return useMemo(() => ({
     ...authState,
     login,
     logout,
     setAuthError,
     setAuthenticated,
     checkAuth
-  }
+  }), [authState, login, logout, setAuthError, setAuthenticated, checkAuth])
 }

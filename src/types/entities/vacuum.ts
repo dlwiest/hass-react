@@ -48,6 +48,8 @@ export interface VacuumState extends BaseEntityHook<VacuumAttributes> {
   supportsLocate: boolean
   supportsCleanSpot: boolean
   supportsStart: boolean
+  turnOn: () => Promise<void>
+  turnOff: () => Promise<void>
   start: () => Promise<void>
   pause: () => Promise<void>
   stop: () => Promise<void>

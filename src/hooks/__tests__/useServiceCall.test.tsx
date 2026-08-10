@@ -71,7 +71,7 @@ describe('useServiceCall', () => {
           type: 'call_service',
           domain: 'homeassistant',
           service: 'restart',
-          service_data: undefined,
+          service_data: {},
         })
       })
     })
@@ -110,7 +110,16 @@ describe('useServiceCall', () => {
 
   describe('callServiceWithResponse', () => {
     it('should call service and return response', async () => {
-      const mockResponse = { events: [{ summary: 'Test Event' }] }
+      // HA return_response envelopes include context plus payloads keyed by entity_id:
+      // https://github.com/home-assistant/core/blob/dev/homeassistant/components/calendar/__init__.py
+      const mockResponse = {
+        context: { id: 'calendar-context' },
+        response: {
+          'calendar.shared': {
+            events: [{ summary: 'Test Event' }]
+          }
+        }
+      }
       mockConnection.sendMessagePromise.mockResolvedValueOnce(mockResponse)
 
       const { result } = renderHook(() => useServiceCall())
@@ -148,7 +157,7 @@ describe('useServiceCall', () => {
         type: 'call_service',
         domain: 'system_log',
         service: 'clear',
-        service_data: undefined,
+        service_data: {},
         return_response: true,
       })
     })

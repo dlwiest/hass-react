@@ -35,6 +35,7 @@ describe('useAuth Hook', () => {
     mockHasStoredAuth.mockReturnValue(false)
     mockLoadAuthData.mockReturnValue(null)
     mockIsOAuthCallback.mockReturnValue(false)
+    window.history.replaceState({}, '', '/')
   })
 
   afterEach(() => {
@@ -103,6 +104,35 @@ describe('useAuth Hook', () => {
         expect(result.current.isAuthenticated).toBe(true)
         expect(result.current.authMode).toBe('oauth')
       })
+    })
+
+    it('should deny OAuth error callbacks and surface the callback error', async () => {
+      window.history.replaceState(
+        {},
+        '',
+        '/?error=access_denied&error_description=The+user+denied+access'
+      )
+      mockIsOAuthCallback.mockReturnValue(true)
+      mockHasStoredAuth.mockReturnValue(true)
+
+      const { result } = renderHook(() =>
+        useAuth('http://homeassistant.local:8123')
+      )
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false)
+        expect(result.current.isAuthenticated).toBe(false)
+        expect(result.current.authMode).toBe('oauth')
+        expect(result.current.error).toMatchObject({
+          code: 'access_denied',
+          message: 'The user denied access',
+          userMessage: 'The user denied access',
+          type: 'oauth_cancelled',
+          recoverable: true,
+          retryAction: 'retry_auth'
+        })
+      })
+      expect(mockLoadAuthData).not.toHaveBeenCalled()
     })
 
     it('should use provided authMode when no stored auth exists', async () => {
@@ -382,6 +412,23 @@ describe('useAuth Hook', () => {
       await waitFor(() => {
         expect(mockHasStoredAuth).toHaveBeenCalledWith('http://homeassistant.local:8123')
       })
+    })
+  })
+
+  describe('Referential stability', () => {
+    it('should preserve the returned object across unrelated rerenders', async () => {
+      const { result, rerender } = renderHook(() =>
+        useAuth('http://homeassistant.local:8123')
+      )
+
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(false)
+      })
+      const auth = result.current
+
+      rerender()
+
+      expect(result.current).toBe(auth)
     })
   })
 

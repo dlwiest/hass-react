@@ -9,10 +9,7 @@ export interface LightAttributes {
   rgb_color?: [number, number, number]
   xy_color?: [number, number]
   hs_color?: [number, number]
-  color_temp?: number
   color_temp_kelvin?: number
-  min_mireds?: number
-  max_mireds?: number
   min_color_temp_kelvin?: number
   max_color_temp_kelvin?: number
   effect?: string
@@ -24,7 +21,7 @@ export interface LightAttributes {
 
 export interface LightTurnOnParams {
   brightness?: number
-  color_temp?: number
+  color_temp_kelvin?: number
   rgb_color?: [number, number, number]
   effect?: string
   transition?: number
@@ -49,7 +46,7 @@ export interface LightState extends BaseEntityHook<LightAttributes>, LightCapabi
   turnOn: (params?: LightTurnOnParams) => Promise<void>
   turnOff: () => Promise<void>
   setBrightness: (brightness: number) => Promise<void>
-  setColorTemp: (temp: number) => Promise<void>
+  setColorTemp: (kelvin: number) => Promise<void>
   setRgbColor: (rgb: [number, number, number]) => Promise<void>
   setEffect: (effect: string | null) => Promise<void>
 }

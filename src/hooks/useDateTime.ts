@@ -53,6 +53,6 @@ export function useDateTime(): DateTimeState {
   return {
     ...entity,
     date,
-    isAvailable: true,
+    isAvailable: date !== null,
   }
 }

@@ -14,8 +14,8 @@ export function useNumber(entityId: string): NumberState {
   const entity = useEntity<NumberAttributes>(normalizedEntityId)
   const { attributes, state, callService } = entity
 
-  // Parse current value from state (fallback to 0 for unavailable/unknown states)
-  const value = parseFloat(state) || 0
+  const parsedValue = parseFloat(state)
+  const value = Number.isNaN(parsedValue) ? null : parsedValue
 
   // Extract configuration with defaults
   const min = attributes.min ?? 0
@@ -37,11 +37,13 @@ export function useNumber(entityId: string): NumberState {
   )
 
   const increment = useCallback(async () => {
+    if (value === null) return
     const newValue = Math.min(max, value + step)
     await setValue(newValue)
   }, [value, step, max, setValue])
 
   const decrement = useCallback(async () => {
+    if (value === null) return
     const newValue = Math.max(min, value - step)
     await setValue(newValue)
   }, [value, step, min, setValue])

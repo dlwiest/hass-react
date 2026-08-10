@@ -1,328 +1,454 @@
 import { create } from 'zustand'
-import { subscribeWithSelector } from 'zustand/middleware'
 import type { EntityState, StateChangedEvent } from '../types'
 import type { HAConnection } from '../types'
 import { withRetry } from '../utils/retry'
 
-// Central store for managing Home Assistant entity states and WebSocket subscriptions
-// Handles automatic subscription/unsubscription as React components mount/unmount
-
-interface WebSocketSubscription {
-  unsubscribe: () => void
-}
+type EntityUpdateHandler = () => void
+type StateChangedHandler = (event: StateChangedEvent) => void
 
 interface EntityStore {
-  // Current entity states indexed by entity_id
   entities: Map<string, EntityState>
-
-  // Component callbacks that want updates for each entity
-  componentSubscriptions: Map<string, Set<() => void>>
-
-  // Active WebSocket subscriptions for each entity
-  websocketSubscriptions: Map<string, WebSocketSubscription>
-
-  // All entities that any component has requested
-  registeredEntities: Set<string>
-
-  // Subscription errors for each entity
   subscriptionErrors: Map<string, Error>
-
-  // Current Home Assistant WebSocket connection
   connection: HAConnection | null
-
-  // Actions
   setConnection: (connection: HAConnection | null) => void
   updateEntity: (entityId: string, state: EntityState) => void
   setSubscriptionError: (entityId: string, error: Error | null) => void
-  registerEntity: (entityId: string, callback: () => void) => void
-  unregisterEntity: (entityId: string, callback: () => void) => void
+  registerEntity: (entityId: string, callback: EntityUpdateHandler) => void
+  unregisterEntity: (entityId: string, callback: EntityUpdateHandler) => void
   batchUpdate: (updates: Array<[string, EntityState]>) => void
   clear: () => void
 }
 
-export const useStore = create<EntityStore>()(
-  subscribeWithSelector((set, get) => ({
-    entities: new Map(),
-    componentSubscriptions: new Map(),
-    websocketSubscriptions: new Map(),
-    registeredEntities: new Set(),
-    subscriptionErrors: new Map(),
-    connection: null,
-
-    // Update the WebSocket connection and resubscribe to all registered entities
-    setConnection: async (connection) => {
-      const oldConnection = get().connection
-
-      // Clean up old subscriptions if connection changed
-      if (oldConnection && oldConnection !== connection) {
-        // Unsubscribe from all existing subscriptions
-        // Use allSettled to wait for all unsubscribes to complete (or fail) before clearing
-        await Promise.allSettled(
-          Array.from(get().websocketSubscriptions.values()).map(sub =>
-            Promise.resolve(sub.unsubscribe())
-          )
-        )
-        set({
-          websocketSubscriptions: new Map(),
-          connection
-        })
-      } else {
-        set({ connection })
-      }
-      
-      // Set up new subscriptions if we have a connection
-      if (connection) {
-        const registeredEntities = get().registeredEntities
-        
-        if (registeredEntities.size > 0) {
-          // Fetch current states for all registered entities
-          const states = await connection.sendMessagePromise<EntityState[]>({
-            type: 'get_states',
-          })
-          
-          // Update store with current entity states
-          const entityMap = new Map(states.map(s => [s.entity_id, s]))
-          registeredEntities.forEach(entityId => {
-            const entity = entityMap.get(entityId)
-            if (entity) {
-              get().updateEntity(entityId, entity)
-            }
-          })
-          
-          // Subscribe to real-time updates for all registered entities
-          await Promise.all(
-            Array.from(registeredEntities).map(entityId => 
-              subscribeToEntityUpdates(connection, entityId, get, set)
-            )
-          )
-        }
-      }
-    },
-
-    // Update entity state and notify all subscribed components
-    updateEntity: (entityId, state) => {
-      set((store) => {
-        const newEntities = new Map(store.entities)
-        newEntities.set(entityId, state)
-        return { entities: newEntities }
-      })
-
-      // Notify component subscribers to trigger re-renders
-      const subs = get().componentSubscriptions.get(entityId)
-      if (subs) {
-        subs.forEach((callback) => callback())
-      }
-    },
-
-    // Set or clear subscription error for an entity
-    setSubscriptionError: (entityId, error) => {
-      set((store) => {
-        const newErrors = new Map(store.subscriptionErrors)
-        if (error) {
-          newErrors.set(entityId, error)
-        } else {
-          newErrors.delete(entityId)
-        }
-        return { subscriptionErrors: newErrors }
-      })
-    },
-
-    // Register a component's interest in an entity (called on component mount)
-    registerEntity: async (entityId, callback) => {
-      
-      // Add entity to global registry and add component callback
-      set((store) => {
-        const newRegistered = new Set(store.registeredEntities)
-        newRegistered.add(entityId)
-        
-        const newSubs = new Map(store.componentSubscriptions)
-        const entitySubs = newSubs.get(entityId) || new Set()
-        entitySubs.add(callback)
-        newSubs.set(entityId, entitySubs)
-        
-        return { 
-          registeredEntities: newRegistered,
-          componentSubscriptions: newSubs 
-        }
-      })
-      
-      // Subscribe to WebSocket updates if connected and not already subscribed
-      const { connection, websocketSubscriptions } = get()
-      if (connection && !websocketSubscriptions.has(entityId)) {
-        await subscribeToEntity(connection, entityId, get, set)
-      }
-    },
-
-    // Unregister a component's interest in an entity (called on component unmount)
-    unregisterEntity: (entityId, callback) => {
-      
-      set((store) => {
-        const newSubs = new Map(store.componentSubscriptions)
-        const entitySubs = newSubs.get(entityId)
-        
-        if (entitySubs) {
-          entitySubs.delete(callback)
-          
-          // If no components are watching this entity, clean up completely
-          if (entitySubs.size === 0) {
-            newSubs.delete(entityId)
-            
-            const newRegistered = new Set(store.registeredEntities)
-            newRegistered.delete(entityId)
-            
-            // Unsubscribe from WebSocket to avoid unnecessary updates
-            const wsSub = store.websocketSubscriptions.get(entityId)
-            if (wsSub) {
-              wsSub.unsubscribe()
-              const newWsSubs = new Map(store.websocketSubscriptions)
-              newWsSubs.delete(entityId)
-              return {
-                componentSubscriptions: newSubs,
-                registeredEntities: newRegistered,
-                websocketSubscriptions: newWsSubs
-              }
-            }
-            
-            return {
-              componentSubscriptions: newSubs,
-              registeredEntities: newRegistered
-            }
-          }
-          
-          newSubs.set(entityId, entitySubs)
-        }
-        
-        return { componentSubscriptions: newSubs }
-      })
-    },
-
-    // Update multiple entities at once (more efficient than individual updates)
-    batchUpdate: (updates) => {
-      set((store) => {
-        const newEntities = new Map(store.entities)
-        updates.forEach(([entityId, state]) => {
-          newEntities.set(entityId, state)
-        })
-        return { entities: newEntities }
-      })
-
-      // Notify subscribers for all updated entities
-      const componentSubs = get().componentSubscriptions
-      updates.forEach(([entityId]) => {
-        const subs = componentSubs.get(entityId)
-        if (subs) {
-          subs.forEach((callback) => callback())
-        }
-      })
-    },
-
-    // Clean up all subscriptions and reset store to initial state
-    clear: () => {
-      // Unsubscribe all WebSocket subscriptions
-      get().websocketSubscriptions.forEach(sub => sub.unsubscribe())
-
-      set({
-        entities: new Map(),
-        componentSubscriptions: new Map(),
-        websocketSubscriptions: new Map(),
-        registeredEntities: new Set(),
-        subscriptionErrors: new Map(),
-        connection: null,
-      })
-    },
-  }))
-)
-
-// Subscribe to a single entity: fetch current state + set up real-time updates
-// Used when an entity is registered after the connection is already established
-async function subscribeToEntity(
-  connection: HAConnection,
-  entityId: string,
-  get: () => EntityStore,
-  set: (partial: Partial<EntityStore> | ((state: EntityStore) => Partial<EntityStore>)) => void
-) {
-  try {
-    await withRetry(async () => {
-      // Get current state from Home Assistant
-      const states = await connection.sendMessagePromise<EntityState[]>({
-        type: 'get_states',
-      })
-
-      const entity = states.find((s: EntityState) => s.entity_id === entityId)
-      if (entity) {
-        get().updateEntity(entityId, entity)
-      }
-
-      // Set up WebSocket subscription for real-time updates
-      await subscribeToEntityUpdates(connection, entityId, get, set)
-    }, {
-      maxAttempts: 3,
-      baseDelay: 1000,
-      exponentialBackoff: true
-    })
-
-    // Clear any previous subscription errors
-    get().setSubscriptionError(entityId, null)
-
-  } catch (error) {
-    console.error(`Failed to subscribe to entity ${entityId}:`, error)
-    // Expose error to hooks so they can display it to users
-    get().setSubscriptionError(entityId, error as Error)
-  }
+interface ActiveStateSubscription {
+  connection: HAConnection
+  generation: number
+  unsubscribe: () => void
 }
 
-// Subscribe to real-time WebSocket updates for an entity
-// Used when we already have the entity state and just need the subscription
-async function subscribeToEntityUpdates(
-  connection: HAConnection,
-  entityId: string,
-  get: () => EntityStore,
-  set: (partial: Partial<EntityStore> | ((state: EntityStore) => Partial<EntityStore>)) => void
-) {
-  try {
-    // First, unsubscribe from any existing subscription for this entity to prevent leaks
-    // Do this BEFORE creating the new subscription to avoid race conditions
-    const existingSub = get().websocketSubscriptions.get(entityId)
-    if (existingSub) {
-      await Promise.resolve(existingSub.unsubscribe()).catch(() => {
-        // Ignore errors from cleaning up old subscription
-      })
-      // Remove the old subscription from the Map
-      set((store) => {
-        const newWsSubs = new Map(store.websocketSubscriptions)
-        // Only delete if it's still the same subscription we just unsubscribed
-        if (newWsSubs.get(entityId) === existingSub) {
-          newWsSubs.delete(entityId)
-        }
-        return { websocketSubscriptions: newWsSubs }
-      })
+interface PendingSnapshot {
+  connection: HAConnection
+  generation: number
+  promise: Promise<EntityState[]>
+}
+
+interface InFlightRegistration {
+  generation: number
+  promise: Promise<void>
+}
+
+type StoreSetter = (
+  partial: Partial<EntityStore> | ((state: EntityStore) => Partial<EntityStore>)
+) => void
+
+// Subscription bookkeeping is intentionally kept outside Zustand. Components only
+// select entities, errors, and the connection; publishing these maps made every
+// mount clone O(N) state and notify every selector.
+const entitySubscriptions = new Map<string, Set<EntityUpdateHandler>>()
+const allStateChangeSubscriptions = new Map<StateChangedHandler, number>()
+const inFlightRegistrations = new Map<string, InFlightRegistration>()
+const entityEventVersions = new Map<string, number>()
+
+let activeStateSubscription: ActiveStateSubscription | null = null
+let pendingSnapshot: PendingSnapshot | null = null
+let stateSubscriptionError: Error | null = null
+let connectionGeneration = 0
+
+export const useStore = create<EntityStore>((set, get) => ({
+  entities: new Map(),
+  subscriptionErrors: new Map(),
+  connection: null,
+
+  setConnection: async (connection) => {
+    const generation = ++connectionGeneration
+    const previousSubscription = activeStateSubscription
+
+    activeStateSubscription = null
+    pendingSnapshot = null
+    stateSubscriptionError = null
+    inFlightRegistrations.clear()
+
+    if (previousSubscription) {
+      unsubscribeSafely(previousSubscription.unsubscribe)
     }
 
-    // Subscribe to state_changed events for this entity
-    const unsubscribe = await connection.subscribeEvents(
-      (event: StateChangedEvent) => {
-        if (event.data.entity_id === entityId) {
-          get().updateEntity(entityId, event.data.new_state)
-        }
-      },
-      'state_changed'
-    )
+    set({ connection })
 
-    // Store the subscription so we can clean it up later
+    if (!connection) {
+      return
+    }
+
+    try {
+      const [subscriptionResult] = await Promise.allSettled([
+        connection.subscribeEvents(
+          (event: StateChangedEvent) => dispatchStateChanged(event, connection, generation),
+          'state_changed'
+        ),
+      ])
+
+      if (!isCurrentConnection(connection, generation)) {
+        if (subscriptionResult.status === 'fulfilled') {
+          unsubscribeSafely(subscriptionResult.value)
+        }
+        return
+      }
+
+      if (subscriptionResult.status === 'fulfilled') {
+        activeStateSubscription = {
+          connection,
+          generation,
+          unsubscribe: subscriptionResult.value,
+        }
+        setSubscriptionErrors(entitySubscriptions.keys(), null, set)
+      } else {
+        stateSubscriptionError = toError(subscriptionResult.reason)
+        console.error('Failed to subscribe to state_changed events:', stateSubscriptionError)
+        setSubscriptionErrors(entitySubscriptions.keys(), stateSubscriptionError, set)
+      }
+
+      const entityIds = Array.from(entitySubscriptions.keys())
+      const registrationResults = await Promise.allSettled(
+        entityIds.map((entityId) => initializeEntity(connection, generation, entityId))
+      )
+
+      if (!isCurrentConnection(connection, generation)) {
+        return
+      }
+
+      const errorUpdates = new Map<string, Error | null>()
+      registrationResults.forEach((result, index) => {
+        const entityId = entityIds[index]
+        if (!entitySubscriptions.has(entityId)) {
+          return
+        }
+
+        if (stateSubscriptionError) {
+          errorUpdates.set(entityId, stateSubscriptionError)
+        } else if (result.status === 'rejected') {
+          errorUpdates.set(entityId, toError(result.reason))
+        } else {
+          errorUpdates.set(entityId, null)
+        }
+      })
+      setSubscriptionErrorUpdates(errorUpdates, set)
+    } catch (error) {
+      if (!isCurrentConnection(connection, generation)) {
+        return
+      }
+
+      stateSubscriptionError = toError(error)
+      console.error('Failed to initialize entity subscriptions:', stateSubscriptionError)
+      setSubscriptionErrors(entitySubscriptions.keys(), stateSubscriptionError, set)
+    }
+  },
+
+  updateEntity: (entityId, state) => {
     set((store) => {
-      const newWsSubs = new Map(store.websocketSubscriptions)
-      newWsSubs.set(entityId, { unsubscribe })
-      return { websocketSubscriptions: newWsSubs }
+      const entities = new Map(store.entities)
+      entities.set(entityId, state)
+      return { entities }
     })
 
-  } catch (error) {
-    console.error(`Failed to subscribe to entity updates ${entityId}:`, error)
-    // Expose error to hooks so they can display it to users
-    get().setSubscriptionError(entityId, error as Error)
-    throw error // Re-throw so caller (subscribeToEntity) can handle it
+    notifyEntitySubscribers(entityId)
+  },
+
+  setSubscriptionError: (entityId, error) => {
+    setSubscriptionErrors([entityId], error, set)
+  },
+
+  registerEntity: async (entityId, callback) => {
+    let subscriptions = entitySubscriptions.get(entityId)
+    if (!subscriptions) {
+      subscriptions = new Set()
+      entitySubscriptions.set(entityId, subscriptions)
+    }
+    subscriptions.add(callback)
+
+    const connection = get().connection
+    const generation = connectionGeneration
+    if (!connection) {
+      return
+    }
+
+    try {
+      await initializeEntity(connection, generation, entityId)
+    } catch {
+      // initializeEntity records the per-entity error. Registration is intentionally
+      // fire-and-forget for React effects, so failures must not escape.
+    }
+  },
+
+  unregisterEntity: (entityId, callback) => {
+    const subscriptions = entitySubscriptions.get(entityId)
+    if (!subscriptions) {
+      return
+    }
+
+    subscriptions.delete(callback)
+    if (subscriptions.size > 0) {
+      return
+    }
+
+    entitySubscriptions.delete(entityId)
+    entityEventVersions.delete(entityId)
+    get().setSubscriptionError(entityId, null)
+  },
+
+  batchUpdate: (updates) => {
+    set((store) => {
+      const entities = new Map(store.entities)
+      updates.forEach(([entityId, state]) => {
+        entities.set(entityId, state)
+      })
+      return { entities }
+    })
+
+    updates.forEach(([entityId]) => notifyEntitySubscribers(entityId))
+  },
+
+  clear: () => {
+    ++connectionGeneration
+
+    const subscription = activeStateSubscription
+    activeStateSubscription = null
+    pendingSnapshot = null
+    stateSubscriptionError = null
+
+    if (subscription) {
+      unsubscribeSafely(subscription.unsubscribe)
+    }
+
+    entitySubscriptions.clear()
+    allStateChangeSubscriptions.clear()
+    inFlightRegistrations.clear()
+    entityEventVersions.clear()
+
+    set({
+      entities: new Map(),
+      subscriptionErrors: new Map(),
+      connection: null,
+    })
+  },
+}))
+
+/**
+ * Subscribe to the store-wide state_changed firehose.
+ *
+ * Every caller is ref-counted locally while all callers share the single
+ * server-side subscription owned by setConnection.
+ */
+export function subscribeAllStateChanges(handler: StateChangedHandler): () => void {
+  allStateChangeSubscriptions.set(
+    handler,
+    (allStateChangeSubscriptions.get(handler) ?? 0) + 1
+  )
+
+  let subscribed = true
+  return () => {
+    if (!subscribed) {
+      return
+    }
+    subscribed = false
+
+    const count = allStateChangeSubscriptions.get(handler)
+    if (count === undefined || count <= 1) {
+      allStateChangeSubscriptions.delete(handler)
+    } else {
+      allStateChangeSubscriptions.set(handler, count - 1)
+    }
   }
 }
 
-// Zustand selector to get a specific entity's state
+function dispatchStateChanged(
+  event: StateChangedEvent,
+  connection: HAConnection,
+  generation: number
+): void {
+  if (!isCurrentConnection(connection, generation)) {
+    return
+  }
+
+  const entityId = event.data.entity_id
+  if (entitySubscriptions.has(entityId)) {
+    entityEventVersions.set(entityId, (entityEventVersions.get(entityId) ?? 0) + 1)
+
+    if (event.data.new_state) {
+      useStore.getState().updateEntity(entityId, event.data.new_state)
+    } else {
+      deleteEntity(entityId)
+      notifyEntitySubscribers(entityId)
+    }
+  }
+
+  allStateChangeSubscriptions.forEach((_count, handler) => handler(event))
+}
+
+function initializeEntity(
+  connection: HAConnection,
+  generation: number,
+  entityId: string
+): Promise<void> {
+  const existing = inFlightRegistrations.get(entityId)
+  if (existing?.generation === generation) {
+    return existing.promise
+  }
+
+  const eventVersion = entityEventVersions.get(entityId) ?? 0
+  let promise!: Promise<void>
+  promise = (async () => {
+    try {
+      const states = await getBatchedSnapshot(connection, generation)
+      if (!isCurrentConnection(connection, generation) || !entitySubscriptions.has(entityId)) {
+        return
+      }
+
+      if ((entityEventVersions.get(entityId) ?? 0) === eventVersion) {
+        const entity = states.find((state) => state.entity_id === entityId)
+        if (entity) {
+          useStore.getState().updateEntity(entityId, entity)
+        }
+      }
+
+      if (activeStateSubscription?.generation === generation) {
+        useStore.getState().setSubscriptionError(entityId, null)
+      } else if (stateSubscriptionError) {
+        useStore.getState().setSubscriptionError(entityId, stateSubscriptionError)
+      }
+    } catch (error) {
+      if (isCurrentConnection(connection, generation) && entitySubscriptions.has(entityId)) {
+        const normalizedError = toError(error)
+        console.error(`Failed to initialize entity ${entityId}:`, normalizedError)
+        useStore.getState().setSubscriptionError(entityId, normalizedError)
+      }
+      throw error
+    } finally {
+      const current = inFlightRegistrations.get(entityId)
+      if (current?.promise === promise) {
+        inFlightRegistrations.delete(entityId)
+      }
+    }
+  })()
+
+  inFlightRegistrations.set(entityId, { generation, promise })
+  return promise
+}
+
+function getBatchedSnapshot(
+  connection: HAConnection,
+  generation: number
+): Promise<EntityState[]> {
+  if (
+    pendingSnapshot?.connection === connection &&
+    pendingSnapshot.generation === generation
+  ) {
+    return pendingSnapshot.promise
+  }
+
+  const snapshot: PendingSnapshot = {
+    connection,
+    generation,
+    promise: Promise.resolve().then(() => {
+      if (!isCurrentConnection(connection, generation)) {
+        return []
+      }
+
+      return withRetry(
+        () => connection.sendMessagePromise<EntityState[]>({ type: 'get_states' }),
+        {
+          maxAttempts: 3,
+          baseDelay: 1000,
+          exponentialBackoff: true,
+        }
+      )
+    }),
+  }
+
+  pendingSnapshot = snapshot
+  snapshot.promise.then(
+    () => clearPendingSnapshot(snapshot),
+    () => clearPendingSnapshot(snapshot)
+  )
+  return snapshot.promise
+}
+
+function clearPendingSnapshot(snapshot: PendingSnapshot): void {
+  if (pendingSnapshot === snapshot) {
+    pendingSnapshot = null
+  }
+}
+
+function deleteEntity(entityId: string): void {
+  useStore.setState((store) => {
+    if (!store.entities.has(entityId)) {
+      return store
+    }
+
+    const entities = new Map(store.entities)
+    entities.delete(entityId)
+    return { entities }
+  })
+}
+
+function notifyEntitySubscribers(entityId: string): void {
+  entitySubscriptions.get(entityId)?.forEach((callback) => callback())
+}
+
+function setSubscriptionErrors(
+  entityIds: Iterable<string>,
+  error: Error | null,
+  set: StoreSetter
+): void {
+  const updates = new Map<string, Error | null>()
+  for (const entityId of entityIds) {
+    updates.set(entityId, error)
+  }
+  setSubscriptionErrorUpdates(updates, set)
+}
+
+function setSubscriptionErrorUpdates(
+  updates: Map<string, Error | null>,
+  set: StoreSetter
+): void {
+  if (updates.size === 0) {
+    return
+  }
+
+  set((store) => {
+    let changed = false
+    const subscriptionErrors = new Map(store.subscriptionErrors)
+
+    updates.forEach((error, entityId) => {
+      if (error) {
+        if (subscriptionErrors.get(entityId) !== error) {
+          subscriptionErrors.set(entityId, error)
+          changed = true
+        }
+      } else if (subscriptionErrors.delete(entityId)) {
+        changed = true
+      }
+    })
+
+    return changed ? { subscriptionErrors } : store
+  })
+}
+
+function isCurrentConnection(connection: HAConnection, generation: number): boolean {
+  return (
+    generation === connectionGeneration &&
+    useStore.getState().connection === connection
+  )
+}
+
+function unsubscribeSafely(unsubscribe: () => void): void {
+  try {
+    Promise.resolve(unsubscribe()).catch(() => {})
+  } catch {
+    // A transport may expose a synchronous unsubscribe. Cleanup is best-effort.
+  }
+}
+
+function toError(error: unknown): Error {
+  return error instanceof Error ? error : new Error(String(error))
+}
+
 export const selectEntity = (entityId: string) => (state: EntityStore) =>
   state.entities.get(entityId)

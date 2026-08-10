@@ -235,8 +235,13 @@ describe('useCalendar', () => {
         }
       ]
 
+      // HA entity-service responses are keyed by entity_id:
+      // https://github.com/home-assistant/core/blob/dev/homeassistant/components/calendar/__init__.py
       const mockCallServiceWithResponse = vi.fn().mockResolvedValue({
-        events: mockEvents
+        context: { id: 'calendar-context' },
+        response: {
+          'calendar.test': { events: mockEvents }
+        }
       })
 
       mockUseEntity.mockReturnValue({
@@ -265,7 +270,10 @@ describe('useCalendar', () => {
 
     it('should return empty array when no events', async () => {
       const mockCallServiceWithResponse = vi.fn().mockResolvedValue({
-        events: []
+        context: { id: 'calendar-context' },
+        response: {
+          'calendar.test': { events: [] }
+        }
       })
 
       mockUseEntity.mockReturnValue({

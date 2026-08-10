@@ -343,13 +343,18 @@ describe('useAlarmControlPanel', () => {
       expect(mockEntity.callService).toHaveBeenCalledWith('alarm_control_panel', 'alarm_arm_night', { code: '9999' })
     })
 
-    it('should call arm_vacation service', async () => {
+    it('should call arm_vacation for an ARM_VACATION-only panel', async () => {
       const mockEntity = createMockAlarmControlPanelEntity('test', 'disarmed', {
-        supported_features: AlarmControlPanelFeatures.SUPPORT_ARM_VACATION
+        // HA AlarmControlPanelEntityFeature.ARM_VACATION is bit 32:
+        // https://github.com/home-assistant/core/blob/dev/homeassistant/components/alarm_control_panel/const.py
+        supported_features: 32
       })
       mockUseEntity.mockReturnValue(mockEntity)
 
       const { result } = renderHook(() => useAlarmControlPanel('test'))
+
+      expect(result.current.supportsArmVacation).toBe(true)
+      expect(result.current.supportsTrigger).toBe(false)
 
       await act(async () => {
         await result.current.armVacation()
@@ -373,13 +378,18 @@ describe('useAlarmControlPanel', () => {
       expect(mockEntity.callService).toHaveBeenCalledWith('alarm_control_panel', 'alarm_arm_custom_bypass', { code: '0000' })
     })
 
-    it('should call trigger service', async () => {
+    it('should call trigger for a TRIGGER-only panel', async () => {
       const mockEntity = createMockAlarmControlPanelEntity('test', 'armed_away', {
-        supported_features: AlarmControlPanelFeatures.SUPPORT_TRIGGER
+        // HA AlarmControlPanelEntityFeature.TRIGGER is bit 8:
+        // https://github.com/home-assistant/core/blob/dev/homeassistant/components/alarm_control_panel/const.py
+        supported_features: 8
       })
       mockUseEntity.mockReturnValue(mockEntity)
 
       const { result } = renderHook(() => useAlarmControlPanel('test'))
+
+      expect(result.current.supportsTrigger).toBe(true)
+      expect(result.current.supportsArmVacation).toBe(false)
 
       await act(async () => {
         await result.current.trigger()

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useEntity } from './useEntity'
 import { useHAConnection } from '../providers/HAProvider'
 import type { CameraState, CameraAttributes, StreamState, StreamOptions } from '../types'
@@ -15,6 +15,20 @@ export function useCamera(entityId: string): CameraState {
   const { config, connection } = useHAConnection()
   const { attributes, state, callService } = entity
   const [imageRefreshKey, setImageRefreshKey] = useState(0)
+  const hasWarnedExternalTransport = useRef(false)
+
+  const warnExternalTransportSuppression = useCallback(() => {
+    if (
+      typeof process !== 'undefined' &&
+      process.env.NODE_ENV !== 'production' &&
+      !hasWarnedExternalTransport.current
+    ) {
+      hasWarnedExternalTransport.current = true
+      console.warn(
+        '[useCamera] Direct camera image and MJPEG URLs are unavailable when using an external transport.'
+      )
+    }
+  }, [])
 
   // Streaming state management
   const [streamState, setStreamState] = useState<StreamState>({
@@ -41,6 +55,12 @@ export function useCamera(entityId: string): CameraState {
   const motionDetectionEnabled = attributes.motion_detection ?? false
   const accessToken = attributes.access_token
   const usesExternalTransport = Boolean(config.transport)
+
+  useEffect(() => {
+    if (usesExternalTransport) {
+      warnExternalTransportSuppression()
+    }
+  }, [usesExternalTransport, warnExternalTransportSuppression])
 
   // Generate camera image URL using the access token from entity attributes
   const imageUrl = useMemo(() => {
@@ -79,36 +99,30 @@ export function useCamera(entityId: string): CameraState {
     await callService('camera', 'disable_motion_detection')
   }, [callService])
 
-  const snapshot = useCallback(async () => {
-    await callService('camera', 'snapshot')
+  const snapshot = useCallback(async (filename: string) => {
+    await callService('camera', 'snapshot', { filename })
   }, [callService])
 
-  const playStream = useCallback(async (mediaPlayer?: string) => {
+  const playStream = useCallback(async (mediaPlayer: string) => {
     if (!features.stream) {
       throw new FeatureNotSupportedError(normalizedEntityId, 'streaming')
     }
-    
+
     try {
-      const params: Record<string, unknown> = {}
-      if (mediaPlayer) {
-        params.media_player = mediaPlayer
-      }
-      
-      await callService('camera', 'play_stream', Object.keys(params).length ? params : undefined)
+      await callService('camera', 'play_stream', {
+        media_player: mediaPlayer
+      })
     } catch (error) {
-      console.error('Play stream failed, trying alternative approach:', error)
-      // Some cameras might not support play_stream service
-      // Try enabling streaming mode instead
-      throw new Error('Camera streaming not supported or media player required')
+      console.error('Play stream failed:', error)
+      throw error
     }
   }, [callService, features.stream, normalizedEntityId])
 
-  const record = useCallback(async (filename?: string, duration?: number) => {
-    const params: Record<string, unknown> = {}
-    if (filename) params.filename = filename
-    if (duration) params.duration = duration
-    
-    await callService('camera', 'record', Object.keys(params).length ? params : undefined)
+  const record = useCallback(async (filename: string, duration?: number) => {
+    await callService('camera', 'record', {
+      filename,
+      ...(duration !== undefined ? { duration } : {})
+    })
   }, [callService])
 
   // Force refresh the camera image by updating the cache-busting key
@@ -149,7 +163,11 @@ export function useCamera(entityId: string): CameraState {
       
       if (streamType === 'mjpeg') {
         // Use camera proxy stream for MJPEG
-        if (usesExternalTransport || !accessToken || !config.url) {
+        if (usesExternalTransport) {
+          warnExternalTransportSuppression()
+          return null
+        }
+        if (!accessToken || !config.url) {
           return null
         }
         const baseUrl = config.url.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/$/, '')
@@ -175,7 +193,7 @@ export function useCamera(entityId: string): CameraState {
       }
       throw error
     }
-  }, [connection, features.stream, normalizedEntityId, accessToken, config.url, usesExternalTransport])
+  }, [connection, features.stream, normalizedEntityId, accessToken, config.url, usesExternalTransport, warnExternalTransportSuppression])
 
   // Start streaming
   const startStream = useCallback(async (options: StreamOptions = {}) => {
@@ -204,7 +222,6 @@ export function useCamera(entityId: string): CameraState {
         url: null,
         type: streamType  // Keep the type so we can retry
       })
-      throw streamError
     }
   }, [getStreamUrl])
 

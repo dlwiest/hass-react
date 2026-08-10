@@ -193,19 +193,12 @@ describe('useClimate', () => {
       expect(result.current.humidity).toBe(45)
     })
 
-    it('should return HVAC mode from attributes or fallback to state', () => {
-      // Test with hvac_mode attribute
-      let attributes: Record<string, any> = { hvac_mode: 'heat' }
-      mockUseEntity.mockReturnValue(createMockClimateEntity('on', attributes))
-      
-      let { result } = renderHook(() => useClimate('climate.test'))
-      expect(result.current.mode).toBe('heat')
-
-      // Test fallback to state when hvac_mode is missing
-      attributes = {}
+    it('should use the entity state as the HVAC mode', () => {
+      const attributes = { hvac_mode: 'fictional-attribute-value' }
       mockUseEntity.mockReturnValue(createMockClimateEntity('cool', attributes))
-      
-      result = renderHook(() => useClimate('climate.test')).result
+
+      const { result } = renderHook(() => useClimate('climate.test'))
+
       expect(result.current.mode).toBe('cool')
     })
 
@@ -259,22 +252,28 @@ describe('useClimate', () => {
       expect(result.current.supportedPresetModes).toEqual([])
     })
 
-    it('should return temperature limits with defaults', () => {
-      // Test with explicit limits
-      let attributes: Record<string, any> = { min_temp: 10, max_temp: 35 }
+    it('should preserve explicit temperature limits including zero', () => {
+      const attributes = { min_temp: 0, max_temp: 35, temperature_unit: '°C' }
       mockUseEntity.mockReturnValue(createMockClimateEntity('heat', attributes))
-      
-      let { result } = renderHook(() => useClimate('climate.test'))
-      expect(result.current.minTemp).toBe(10)
-      expect(result.current.maxTemp).toBe(35)
 
-      // Test with default limits when missing
-      attributes = {}
-      mockUseEntity.mockReturnValue(createMockClimateEntity('heat', attributes))
-      
-      result = renderHook(() => useClimate('climate.test')).result
-      expect(result.current.minTemp).toBe(60) // Default
-      expect(result.current.maxTemp).toBe(90) // Default
+      const { result } = renderHook(() => useClimate('climate.test'))
+
+      expect(result.current.minTemp).toBe(0)
+      expect(result.current.maxTemp).toBe(35)
+    })
+
+    it.each([
+      ['°C', 7, 35],
+      ['°F', 45, 95],
+    ])('should derive %s temperature limits when attributes are absent', (unit, min, max) => {
+      mockUseEntity.mockReturnValue(
+        createMockClimateEntity('heat', { temperature_unit: unit })
+      )
+
+      const { result } = renderHook(() => useClimate('climate.test'))
+
+      expect(result.current.minTemp).toBe(min)
+      expect(result.current.maxTemp).toBe(max)
     })
 
     it('should handle undefined attribute values gracefully', () => {

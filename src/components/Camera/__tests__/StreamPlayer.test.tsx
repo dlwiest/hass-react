@@ -1,19 +1,20 @@
 import React from 'react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, waitFor } from '@testing-library/react'
+import { fireEvent, render, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
 import { StreamPlayer } from '../StreamPlayer'
 import type { StreamState } from '../../../types'
 
 describe('Camera.StreamPlayer', () => {
-  let mockVideoPlay: any
-  let mockVideoPause: any
+  const mockVideoPlay = vi.fn()
+  const mockVideoPause = vi.fn()
+  const mockVideoLoad = vi.fn()
 
   beforeEach(() => {
     // Mock HTMLVideoElement methods
-    mockVideoPlay = vi.fn().mockResolvedValue(undefined)
-    mockVideoPause = vi.fn()
-
+    mockVideoPlay.mockReset().mockResolvedValue(undefined)
+    mockVideoPause.mockReset()
+    mockVideoLoad.mockReset()
     // Mock canPlayType
     Object.defineProperty(HTMLVideoElement.prototype, 'play', {
       value: mockVideoPlay,
@@ -21,6 +22,10 @@ describe('Camera.StreamPlayer', () => {
     })
     Object.defineProperty(HTMLVideoElement.prototype, 'pause', {
       value: mockVideoPause,
+      writable: true
+    })
+    Object.defineProperty(HTMLVideoElement.prototype, 'load', {
+      value: mockVideoLoad,
       writable: true
     })
     Object.defineProperty(HTMLVideoElement.prototype, 'canPlayType', {
@@ -110,7 +115,7 @@ describe('Camera.StreamPlayer', () => {
       expect(video).toHaveClass('custom-stream-player')
     })
 
-    it('should respect autoPlay prop', () => {
+    it('should not play when autoPlay is false', async () => {
       const streamState: StreamState = {
         isLoading: false,
         isActive: true,
@@ -123,10 +128,12 @@ describe('Camera.StreamPlayer', () => {
 
       let video = document.querySelector('video') as HTMLVideoElement
       expect(video.autoplay).toBe(false)
+      expect(mockVideoPlay).not.toHaveBeenCalled()
 
       rerender(<StreamPlayer stream={streamState} autoPlay={true} />)
       video = document.querySelector('video') as HTMLVideoElement
       expect(video.autoplay).toBe(true)
+      await waitFor(() => expect(mockVideoPlay).toHaveBeenCalledTimes(1))
     })
 
     it('should respect muted prop', () => {
@@ -198,7 +205,7 @@ describe('Camera.StreamPlayer', () => {
       })
     })
 
-    it('should clear video when stream becomes inactive', async () => {
+    it('should tear down video when stream becomes inactive', async () => {
       const activeStream: StreamState = {
         isLoading: false,
         isActive: true,
@@ -208,10 +215,9 @@ describe('Camera.StreamPlayer', () => {
       }
 
       const { rerender, container } = render(<StreamPlayer stream={activeStream} />)
+      const video = document.querySelector('video') as HTMLVideoElement
 
-      await waitFor(() => {
-        expect(document.querySelector('video')).toBeInTheDocument()
-      })
+      await waitFor(() => expect(video).toHaveAttribute('src', activeStream.url))
 
       const inactiveStream: StreamState = {
         isLoading: false,
@@ -224,6 +230,29 @@ describe('Camera.StreamPlayer', () => {
       rerender(<StreamPlayer stream={inactiveStream} />)
 
       expect(container.firstChild).toBeNull()
+      expect(mockVideoPause).toHaveBeenCalledTimes(1)
+      expect(video).not.toHaveAttribute('src')
+      expect(mockVideoLoad).toHaveBeenCalledTimes(1)
+    })
+
+    it('should tear down video on unmount', async () => {
+      const streamState: StreamState = {
+        isLoading: false,
+        isActive: true,
+        error: null,
+        url: 'http://example.com/stream.m3u8',
+        type: 'hls'
+      }
+
+      const { unmount } = render(<StreamPlayer stream={streamState} />)
+      const video = document.querySelector('video') as HTMLVideoElement
+      await waitFor(() => expect(video).toHaveAttribute('src', streamState.url))
+
+      unmount()
+
+      expect(mockVideoPause).toHaveBeenCalledTimes(1)
+      expect(video).not.toHaveAttribute('src')
+      expect(mockVideoLoad).toHaveBeenCalledTimes(1)
     })
 
     it('should handle stream type changes', () => {
@@ -250,6 +279,75 @@ describe('Camera.StreamPlayer', () => {
       rerender(<StreamPlayer stream={mjpegStream} />)
       expect(document.querySelector('video')).not.toBeInTheDocument()
       expect(document.querySelector('img')).toBeInTheDocument()
+    })
+
+    it('should report unsupported native HLS without assigning the source', async () => {
+      let unsupportedVideo: HTMLVideoElement | null = null
+      Object.defineProperty(HTMLVideoElement.prototype, 'canPlayType', {
+        value: vi.fn(function (this: HTMLVideoElement) {
+          unsupportedVideo = this
+          return ''
+        }),
+        writable: true
+      })
+      const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const onError = vi.fn()
+      const streamState: StreamState = {
+        isLoading: false,
+        isActive: true,
+        error: null,
+        url: 'http://example.com/stream.m3u8',
+        type: 'hls'
+      }
+
+      const { container } = render(<StreamPlayer stream={streamState} onError={onError} />)
+
+      await waitFor(() => expect(onError).toHaveBeenCalledWith(expect.any(Error)))
+      expect(unsupportedVideo).not.toHaveAttribute('src')
+      expect(mockVideoPlay).not.toHaveBeenCalled()
+      expect(container.firstChild).toBeNull()
+      consoleWarn.mockRestore()
+    })
+
+    it('should route video and play failures to onError', async () => {
+      const playError = new Error('Playback denied')
+      mockVideoPlay.mockRejectedValueOnce(playError)
+      const onError = vi.fn()
+      const streamState: StreamState = {
+        isLoading: false,
+        isActive: true,
+        error: null,
+        url: 'http://example.com/stream.m3u8',
+        type: 'hls'
+      }
+
+      render(<StreamPlayer stream={streamState} onError={onError} />)
+
+      await waitFor(() => expect(onError).toHaveBeenCalledWith(playError))
+
+      const video = document.querySelector('video') as HTMLVideoElement
+      fireEvent.error(video)
+      expect(onError).toHaveBeenLastCalledWith(expect.any(Error))
+      await waitFor(() => expect(document.querySelector('video')).not.toBeInTheDocument())
+    })
+
+    it('should ignore AbortError play rejections', async () => {
+      const abortError = new Error('Playback interrupted')
+      abortError.name = 'AbortError'
+      mockVideoPlay.mockRejectedValueOnce(abortError)
+      const onError = vi.fn()
+      const streamState: StreamState = {
+        isLoading: false,
+        isActive: true,
+        error: null,
+        url: 'http://example.com/stream.m3u8',
+        type: 'hls'
+      }
+
+      render(<StreamPlayer stream={streamState} onError={onError} />)
+
+      await waitFor(() => expect(mockVideoPlay).toHaveBeenCalled())
+      expect(onError).not.toHaveBeenCalled()
     })
   })
 
@@ -283,6 +381,23 @@ describe('Camera.StreamPlayer', () => {
 
       const img = document.querySelector('img')
       expect(img).toHaveClass('mjpeg-stream')
+    })
+
+    it('should hide failed MJPEG images and report the error', () => {
+      const onError = vi.fn()
+      const streamState: StreamState = {
+        isLoading: false,
+        isActive: true,
+        error: null,
+        url: 'http://example.com/stream.mjpeg',
+        type: 'mjpeg'
+      }
+
+      render(<StreamPlayer stream={streamState} onError={onError} />)
+      fireEvent.error(document.querySelector('img') as HTMLImageElement)
+
+      expect(document.querySelector('img')).not.toBeInTheDocument()
+      expect(onError).toHaveBeenCalledWith(expect.any(Error))
     })
   })
 

@@ -21,7 +21,7 @@ export function useServiceCall() {
             type: 'call_service',
             domain,
             service,
-            service_data: data,
+            service_data: data ?? {},
           })
         } catch (originalError) {
           throw new ServiceCallError(
@@ -53,7 +53,7 @@ export function useServiceCall() {
             type: 'call_service',
             domain,
             service,
-            service_data: data,
+            service_data: data ?? {},
             return_response: true,
           })
           return response as R

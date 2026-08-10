@@ -107,6 +107,17 @@ describe('useVacuum', () => {
       expect(result.current.availableFanSpeeds).toEqual(['Silent', 'Standard', 'Medium', 'Turbo'])
     })
 
+    it('should reuse the empty fan-speed fallback across renders', () => {
+      mockUseEntity.mockReturnValue(createMockVacuumEntity('idle', {}))
+
+      const { result, rerender } = renderHook(() => useVacuum('vacuum.test'))
+      const firstFanSpeeds = result.current.availableFanSpeeds
+
+      rerender()
+
+      expect(result.current.availableFanSpeeds).toBe(firstFanSpeeds)
+    })
+
     it('should return status', () => {
       const attributes = {
         status: 'Cleaning main room'
@@ -219,6 +230,8 @@ describe('useVacuum', () => {
     it('should detect all features', () => {
       const attributes = {
         supported_features:
+          VacuumFeatures.SUPPORT_TURN_ON |
+          VacuumFeatures.SUPPORT_TURN_OFF |
           VacuumFeatures.SUPPORT_START |
           VacuumFeatures.SUPPORT_PAUSE |
           VacuumFeatures.SUPPORT_STOP |
@@ -231,6 +244,8 @@ describe('useVacuum', () => {
 
       const { result } = renderHook(() => useVacuum('vacuum.test'))
 
+      expect(result.current.supportsTurnOn).toBe(true)
+      expect(result.current.supportsTurnOff).toBe(true)
       expect(result.current.supportsStart).toBe(true)
       expect(result.current.supportsPause).toBe(true)
       expect(result.current.supportsStop).toBe(true)
@@ -242,6 +257,41 @@ describe('useVacuum', () => {
   })
 
   describe('Control Methods', () => {
+    it('should call turn_on and turn_off for legacy vacuum features', async () => {
+      const mockEntity = createMockVacuumEntity('off', {
+        // HA VacuumEntityFeature.TURN_ON is 1 and TURN_OFF is 2:
+        // https://github.com/home-assistant/core/blob/dev/homeassistant/components/vacuum/const.py
+        supported_features: 1 | 2
+      })
+      mockUseEntity.mockReturnValue(mockEntity)
+
+      const { result } = renderHook(() => useVacuum('vacuum.test'))
+
+      expect(result.current.supportsTurnOn).toBe(true)
+      expect(result.current.supportsTurnOff).toBe(true)
+
+      await act(async () => {
+        await result.current.turnOn()
+        await result.current.turnOff()
+      })
+
+      expect(mockEntity.callService).toHaveBeenNthCalledWith(1, 'vacuum', 'turn_on')
+      expect(mockEntity.callService).toHaveBeenNthCalledWith(2, 'vacuum', 'turn_off')
+    })
+
+    it('should reject unsupported turn_on and turn_off actions', async () => {
+      const mockEntity = createMockVacuumEntity('off', {
+        supported_features: 0
+      })
+      mockUseEntity.mockReturnValue(mockEntity)
+
+      const { result } = renderHook(() => useVacuum('vacuum.test'))
+
+      await expect(result.current.turnOn()).rejects.toThrow(FeatureNotSupportedError)
+      await expect(result.current.turnOff()).rejects.toThrow(FeatureNotSupportedError)
+      expect(mockEntity.callService).not.toHaveBeenCalled()
+    })
+
     it('should call start service', async () => {
       const mockEntity = createMockVacuumEntity('idle', {
         supported_features: VacuumFeatures.SUPPORT_START

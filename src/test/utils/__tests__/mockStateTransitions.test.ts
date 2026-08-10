@@ -39,11 +39,11 @@ describe('mockStateTransitions', () => {
           'turn_on',
           'off',
           { brightness: 0 },
-          { entity_id: 'light.test', brightness: 128, color_temp: 2700 }
+          { entity_id: 'light.test', brightness: 128, color_temp_kelvin: 2700 }
         )
         
         expect(result.state).toBe('on')
-        expect(result.attributes).toEqual({ brightness: 128, color_temp: 2700 })
+        expect(result.attributes).toEqual({ brightness: 128, color_temp_kelvin: 2700 })
       })
 
       it('should handle turn_off service', () => {
@@ -275,7 +275,7 @@ describe('mockStateTransitions', () => {
           { entity_id: 'cover.test' }
         )
         
-        expect(result.state).toBe('stopped')
+        expect(result.state).toBe('open')
         expect(result.attributes.current_position).toBe(50)
       })
 
@@ -283,36 +283,36 @@ describe('mockStateTransitions', () => {
         const result = mockServiceCall(
           'cover',
           'set_cover_position',
-          'stopped',
+          'open',
           { current_position: 50 },
           { entity_id: 'cover.test', position: 75 }
         )
         
-        expect(result.state).toBe('stopped')
+        expect(result.state).toBe('open')
         expect(result.attributes.current_position).toBe(75)
       })
 
       it('should set state based on position', () => {
         // Fully closed
         const closedResult = mockServiceCall(
-          'cover', 'set_cover_position', 'stopped', {},
+          'cover', 'set_cover_position', 'open', {},
           { entity_id: 'cover.test', position: 0 }
         )
         expect(closedResult.state).toBe('closed')
 
         // Fully open
         const openResult = mockServiceCall(
-          'cover', 'set_cover_position', 'stopped', {},
+          'cover', 'set_cover_position', 'closed', {},
           { entity_id: 'cover.test', position: 100 }
         )
         expect(openResult.state).toBe('open')
 
         // Partially open
         const partialResult = mockServiceCall(
-          'cover', 'set_cover_position', 'stopped', {},
+          'cover', 'set_cover_position', 'open', {},
           { entity_id: 'cover.test', position: 50 }
         )
-        expect(partialResult.state).toBe('stopped')
+        expect(partialResult.state).toBe('open')
       })
     })
 
@@ -415,13 +415,13 @@ describe('mockStateTransitions', () => {
           'turn_on',
           'off',
           { brightness: 128, existing_attr: 'keep_me' },
-          { entity_id: 'light.test', color_temp: 2700 }
+          { entity_id: 'light.test', color_temp_kelvin: 2700 }
         )
         
         expect(result.attributes).toEqual({
           brightness: 128,
           existing_attr: 'keep_me',
-          color_temp: 2700
+          color_temp_kelvin: 2700
         })
       })
 

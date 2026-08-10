@@ -87,6 +87,11 @@ export function useClimate(entityId: string): ClimateState {
     [callService, supportsPresetMode, normalizedEntityId]
   )
 
+  // HA reports °C or °F; use metric defaults unless Fahrenheit is explicit.
+  const isFahrenheit = attributes.temperature_unit === '°F' || attributes.temperature_unit === 'F'
+  const defaultMinTemp = isFahrenheit ? 45 : 7
+  const defaultMaxTemp = isFahrenheit ? 95 : 35
+
   return {
     ...entity,
     currentTemperature: attributes.current_temperature,
@@ -94,14 +99,14 @@ export function useClimate(entityId: string): ClimateState {
     targetTempHigh: attributes.target_temp_high,
     targetTempLow: attributes.target_temp_low,
     humidity: attributes.current_humidity,
-    mode: attributes.hvac_mode || state,
+    mode: state,
     fanMode: attributes.fan_mode,
     presetMode: attributes.preset_mode,
     supportedModes: attributes.hvac_modes || [],
     supportedFanModes: attributes.fan_modes || [],
     supportedPresetModes: attributes.preset_modes || [],
-    minTemp: attributes.min_temp || 60,
-    maxTemp: attributes.max_temp || 90,
+    minTemp: attributes.min_temp ?? defaultMinTemp,
+    maxTemp: attributes.max_temp ?? defaultMaxTemp,
     supportsTargetTemperature,
     supportsTargetTemperatureRange,
     supportsFanMode,
