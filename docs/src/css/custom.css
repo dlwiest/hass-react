@@ -5,15 +5,35 @@
  *
  * hass-react design system: "daylight / night panel"
  * Home Assistant blue anchored on ink-navy surfaces, with a warm
- * "lamp on" amber accent. One variable font (Sora) for all text.
+ * "lamp on" amber accent. Font pairing: Space Grotesk for headings,
+ * Source Sans 3 for body text. Both self-hosted variable subsets.
  */
 
 @font-face {
-  font-family: 'Sora';
-  src: url('/fonts/sora-var.woff2') format('woff2');
-  font-weight: 100 800;
+  font-family: 'Space Grotesk';
+  src: url('/fonts/space-grotesk-var.woff2') format('woff2');
+  font-weight: 300 700;
   font-style: normal;
   font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('/fonts/source-sans-3-var.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('/fonts/source-sans-3-var-italic.woff2') format('woff2');
+  font-weight: 200 900;
+  font-style: italic;
+  font-display: swap;
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
 }
 
 /* ---------------------------------------------------------------- */
@@ -50,8 +70,8 @@
   --ifm-color-emphasis-1000: #101e30;
 
   /* Typography */
-  --ifm-font-family-base: 'Sora', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --ifm-heading-font-family: 'Sora', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ifm-font-family-base: 'Source Sans 3', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --ifm-heading-font-family: 'Space Grotesk', 'Source Sans 3', system-ui, sans-serif;
   --ifm-font-family-monospace: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   --ifm-heading-font-weight: 700;
   --ifm-font-size-base: 15.5px;
@@ -193,7 +213,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 h1 {
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.03em;
 }
 
