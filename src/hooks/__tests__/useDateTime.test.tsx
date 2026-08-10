@@ -86,7 +86,7 @@ describe('useDateTime', () => {
       const { result } = renderHook(() => useDateTime())
 
       expect(result.current.date).toBeNull()
-      expect(result.current.isAvailable).toBe(true)
+      expect(result.current.isAvailable).toBe(false)
     })
 
     it('should handle dates with milliseconds', () => {

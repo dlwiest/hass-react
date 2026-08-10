@@ -6,6 +6,6 @@ export interface StateChangedEvent {
   data: {
     entity_id: string
     old_state: EntityState | null
-    new_state: EntityState
+    new_state: EntityState | null
   }
 }

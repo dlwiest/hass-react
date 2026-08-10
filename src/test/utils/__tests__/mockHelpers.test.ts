@@ -9,6 +9,7 @@ import {
   getMockServiceCall,
   expectServiceCalled
 } from '../mockHelpers'
+import { EntityNotAvailableError } from '../../../utils/errors'
 
 describe('mockHelpers', () => {
   describe('createMockEntity', () => {
@@ -27,6 +28,21 @@ describe('mockHelpers', () => {
     it('should handle unavailable state correctly', () => {
       const entity = createMockEntity('light.test', 'unavailable')
       expect(entity.isUnavailable).toBe(true)
+    })
+
+    it('should derive an availability error for unavailable entities', () => {
+      const entity = createMockEntity('light.test', 'unavailable')
+
+      expect(entity.error).toBeInstanceOf(EntityNotAvailableError)
+      expect(entity.error?.message).toContain('Entity is unavailable')
+    })
+
+    it('should accept disconnected and explicit error states', () => {
+      const error = new Error('Subscription failed')
+      const entity = createMockEntity('light.test', 'unknown', {}, false, error)
+
+      expect(entity.isConnected).toBe(false)
+      expect(entity.error).toBe(error)
     })
 
     it('should use default values when not provided', () => {
@@ -196,17 +212,17 @@ describe('mockHelpers', () => {
     it('should handle typed attributes correctly', () => {
       interface LightAttributes {
         brightness: number
-        color_temp?: number
+        color_temp_kelvin?: number
       }
       
       const entity = createMockEntity<LightAttributes>(
         'light.test', 
         'on', 
-        { brightness: 255, color_temp: 2700 }
+        { brightness: 255, color_temp_kelvin: 2700 }
       )
       
       expect(entity.attributes.brightness).toBe(255)
-      expect(entity.attributes.color_temp).toBe(2700)
+      expect(entity.attributes.color_temp_kelvin).toBe(2700)
     })
   })
 })

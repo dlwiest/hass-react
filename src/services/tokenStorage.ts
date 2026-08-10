@@ -29,8 +29,8 @@ export function loadAuthData(hassUrl: string): StoredAuthData | null {
       return null
     }
     
-    // Check if token is expired
-    if (authData.expires_at && Date.now() > authData.expires_at) {
+    // An expired access token can still be renewed with its refresh token
+    if (authData.expires_at && Date.now() > authData.expires_at && !authData.refresh_token) {
       removeAuthData(hassUrl)
       return null
     }
@@ -66,7 +66,14 @@ export function clearAllAuthData(): void {
 function getStoredAuth(): Record<string, StoredAuthData> {
   try {
     const stored = localStorage.getItem(STORAGE_KEY)
-    return stored ? JSON.parse(stored) : {}
+    if (!stored) {
+      return {}
+    }
+
+    const parsed: unknown = JSON.parse(stored)
+    return typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)
+      ? parsed as Record<string, StoredAuthData>
+      : {}
   } catch (error) {
     console.warn('Failed to parse stored auth data:', error)
     return {}

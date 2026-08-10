@@ -5,6 +5,7 @@ export interface ClimateAttributes {
   friendly_name?: string
   temperature?: number
   current_temperature?: number
+  temperature_unit?: string
   target_temp_high?: number
   target_temp_low?: number
   humidity?: number

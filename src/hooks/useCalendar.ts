@@ -8,6 +8,10 @@ import type { CalendarState, CalendarAttributes, CalendarEvent } from '../types'
 import { CalendarFeatures } from '../types'
 
 const validateCalendarEntityId = createDomainValidator('calendar', 'useCalendar')
+interface CalendarEventsResponse {
+  response?: Record<string, { events?: CalendarEvent[] }>
+}
+
 
 const eventSchema = z.object({
   start: z.string(),
@@ -65,14 +69,13 @@ export function useCalendar(entityId: string): CalendarState {
     async (startDate: string, endDate: string): Promise<CalendarEvent[]> => {
       dateRangeSchema.parse({ start: startDate, end: endDate })
 
-      const response = await callServiceWithResponse<{ events: CalendarEvent[] }>('calendar', 'get_events', {
+      const response = await callServiceWithResponse<CalendarEventsResponse>('calendar', 'get_events', {
         entity_id: normalizedEntityId,
         start_date_time: startDate,
         end_date_time: endDate,
       })
 
-      // Response contains events array
-      return response?.events ?? []
+      return response?.response?.[normalizedEntityId]?.events ?? []
     },
     [callServiceWithResponse, normalizedEntityId]
   )

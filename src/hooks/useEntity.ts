@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react'
+import { useEffect, useCallback, useMemo, useState } from 'react'
 import { useStore } from '../services/entityStore'
 import { useHAConnection } from '../providers/HAProvider'
 import type { BaseEntityHook, EntityState } from '../types'
@@ -6,13 +6,13 @@ import { useEntityIdValidation } from '../utils/entityValidation'
 import { EntityNotAvailableError, ConnectionError, ServiceCallError } from '../utils/errors'
 import { withRetry, getRetryOptionsFromConfig } from '../utils/retry'
 
-// Internal type that includes service call methods for use within entity-specific hooks
-export interface InternalEntityHook<T = Record<string, unknown>> extends BaseEntityHook<T> {
+// Includes service call methods for use within entity-specific hooks.
+export interface EntityHook<T = Record<string, unknown>> extends BaseEntityHook<T> {
   callService: (domain: string, service: string, data?: object) => Promise<void>
   callServiceWithResponse: <R = unknown>(domain: string, service: string, data?: object) => Promise<R>
 }
 
-export function useEntity<T = Record<string, unknown>>(entityId: string): InternalEntityHook<T> {
+export function useEntity<T = Record<string, unknown>>(entityId: string): EntityHook<T> {
   const { connection, connected, config } = useHAConnection()
   const registerEntity = useStore((state) => state.registerEntity)
   const unregisterEntity = useStore((state) => state.unregisterEntity)
@@ -156,17 +156,27 @@ export function useEntity<T = Record<string, unknown>>(entityId: string): Intern
     }
   }, [connection, entityId])
 
-  // Default values if entity doesn't exist yet
-  const defaultEntity: EntityState<T> = {
-    entity_id: entityId,
-    state: 'unknown',
-    attributes: {} as T,
-    last_changed: new Date().toISOString(),
-    last_updated: new Date().toISOString(),
-    context: { id: '', parent_id: null, user_id: null },
-  }
+  // Keep the fallback stable until this hook starts tracking a different entity.
+  const currentEntity = useMemo<EntityState<T>>(
+    () => (entity as EntityState<T> | undefined) ?? {
+      entity_id: entityId,
+      state: 'unknown',
+      attributes: {} as T,
+      last_changed: new Date().toISOString(),
+      last_updated: new Date().toISOString(),
+      context: { id: '', parent_id: null, user_id: null },
+    },
+    [entity, entityId]
+  )
 
-  const currentEntity = entity || defaultEntity
+  const lastChanged = useMemo(
+    () => new Date(currentEntity.last_changed),
+    [currentEntity.last_changed]
+  )
+  const lastUpdated = useMemo(
+    () => new Date(currentEntity.last_updated),
+    [currentEntity.last_updated]
+  )
 
   // Internal methods for entity-specific hooks to use
   const internalMethods = {
@@ -178,8 +188,8 @@ export function useEntity<T = Record<string, unknown>>(entityId: string): Intern
     entityId,
     state: currentEntity.state,
     attributes: currentEntity.attributes as T,
-    lastChanged: new Date(currentEntity.last_changed),
-    lastUpdated: new Date(currentEntity.last_updated),
+    lastChanged,
+    lastUpdated,
     isUnavailable: currentEntity.state === 'unavailable',
     isConnected: connected,
     error: error || undefined,

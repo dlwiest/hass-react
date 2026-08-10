@@ -46,6 +46,17 @@ describe('useNumber', () => {
       expect(result.current.value).toBe(42.5)
     })
 
+    it.each(['unknown', 'unavailable', 'not-a-number'])(
+      'should return null for non-numeric state %s',
+      (state) => {
+        mockUseEntity.mockReturnValue(createMockNumberEntity(state))
+
+        const { result } = renderHook(() => useNumber('number.test'))
+
+        expect(result.current.value).toBeNull()
+      }
+    )
+
     it('should handle min/max/step attributes', () => {
       const attributes = {
         min: 0,
@@ -218,6 +229,25 @@ describe('useNumber', () => {
 
       expect(mockCallService).toHaveBeenCalledWith('number', 'set_value', { value: 0 })
     })
+
+    it.each(['increment', 'decrement'] as const)(
+      'should not %s when the current value is unavailable',
+      async (action) => {
+        const mockCallService = vi.fn()
+        mockUseEntity.mockReturnValue({
+          ...createMockNumberEntity('unavailable'),
+          callService: mockCallService
+        })
+
+        const { result } = renderHook(() => useNumber('number.test'))
+
+        await act(async () => {
+          await result.current[action]()
+        })
+
+        expect(mockCallService).not.toHaveBeenCalled()
+      }
+    )
 
     it('should handle service call errors', async () => {
       const mockCallService = vi.fn().mockRejectedValue(new Error('Service call failed'))

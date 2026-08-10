@@ -40,17 +40,17 @@ export interface WeatherAttributes {
 export interface WeatherState extends BaseEntityHook<WeatherAttributes> {
   condition: WeatherCondition | string
   temperature: number | null
-  temperatureUnit: string
+  temperatureUnit?: string
   humidity: number | null
   pressure: number | null
-  pressureUnit: string
+  pressureUnit?: string
   windSpeed: number | null
-  windSpeedUnit: string
+  windSpeedUnit?: string
   windBearing: number | null
   visibility: number | null
-  visibilityUnit: string
+  visibilityUnit?: string
   cloudCoverage: number | null
   dewPoint: number | null
   apparentTemperature: number | null
-  precipitationUnit: string
+  precipitationUnit?: string
 }

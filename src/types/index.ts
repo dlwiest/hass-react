@@ -49,6 +49,9 @@ export type {
   BinarySensorState,
 } from './entities/binary_sensor'
 
+// Entity types - Cover
+export { CoverFeatures } from './entities/cover'
+
 // Entity types - Todo
 export type {
   TodoItem,

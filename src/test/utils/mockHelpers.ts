@@ -1,12 +1,17 @@
 import { vi, expect } from 'vitest'
-import type { InternalEntityHook } from '../../hooks/useEntity'
+import type { EntityHook } from '../../hooks/useEntity'
+import { EntityNotAvailableError } from '../../utils/errors'
 
 // Creates a mock entity for testing purposes
 export function createMockEntity<T = Record<string, unknown>>(
   entityId: string,
   state: string = 'on',
-  attributes: T = {} as T
-): InternalEntityHook<T> {
+  attributes: T = {} as T,
+  isConnected: boolean = true,
+  error: Error | undefined = state === 'unavailable'
+    ? new EntityNotAvailableError(entityId, 'Entity is unavailable')
+    : undefined
+): EntityHook<T> {
   return {
     entityId,
     state,
@@ -14,7 +19,8 @@ export function createMockEntity<T = Record<string, unknown>>(
     lastChanged: new Date(),
     lastUpdated: new Date(),
     isUnavailable: state === 'unavailable',
-    isConnected: true,
+    isConnected,
+    error,
     callService: vi.fn(),
     callServiceWithResponse: vi.fn(),
     refresh: vi.fn()
@@ -116,7 +122,7 @@ export function createMockEntityWithFeatures<T = Record<string, unknown>>(
   features: number[],
   state: string = 'on',
   additionalAttributes: Partial<T> = {}
-): InternalEntityHook<T> {
+): EntityHook<T> {
   const supportedFeatures = features.reduce((acc, feature) => acc | feature, 0)
   
   return createMockEntity<T>(
@@ -131,13 +137,13 @@ export function createMockEntityWithFeatures<T = Record<string, unknown>>(
 }
 
 // Extracts the mock callService function for assertions
-export function getMockServiceCall(mockEntity: InternalEntityHook) {
+export function getMockServiceCall(mockEntity: EntityHook) {
   return mockEntity.callService as ReturnType<typeof vi.fn>
 }
 
 // Helper to verify service calls with specific parameters
 export function expectServiceCalled(
-  mockEntity: InternalEntityHook,
+  mockEntity: EntityHook,
   domain: string,
   service: string,
   data?: object

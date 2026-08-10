@@ -1,12 +1,11 @@
 import { useEntity } from './useEntity'
 import type { SensorState, SensorAttributes } from '../types'
+import { createDomainValidator } from '../utils/entityId'
 
-function ensureSensorEntityId(entityId: string): string {
-  return entityId.includes('.') ? entityId : `sensor.${entityId}`
-}
+const validateSensorEntityId = createDomainValidator('sensor', 'useSensor')
 
 export function useSensor(entityId: string): SensorState {
-  const normalizedEntityId = ensureSensorEntityId(entityId)
+  const normalizedEntityId = validateSensorEntityId(entityId)
   const entity = useEntity<SensorAttributes>(normalizedEntityId)
   const { attributes, state } = entity
 

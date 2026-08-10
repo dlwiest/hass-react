@@ -37,6 +37,21 @@ describe('useSensor', () => {
     vi.clearAllMocks()
   })
 
+  describe('Entity ID validation', () => {
+    it('should normalize bare IDs and warn for the wrong domain', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+
+      renderHook(() => useSensor('living_room'))
+      expect(mockUseEntity).toHaveBeenCalledWith('sensor.living_room')
+
+      renderHook(() => useSensor('light.sensor_hook_wrong_domain'))
+      expect(mockUseEntity).toHaveBeenLastCalledWith('light.sensor_hook_wrong_domain')
+      expect(warn).toHaveBeenCalledOnce()
+
+      warn.mockRestore()
+    })
+  })
+
   describe('Value Parsing and Device Classes', () => {
     it('should parse temperature values as numbers', () => {
       const attributes = {

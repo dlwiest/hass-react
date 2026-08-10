@@ -147,6 +147,18 @@ describe('useLight', () => {
       expect(result.current.supportsRgb).toBe(true)
     })
 
+    it.each(['rgbw', 'rgbww'] as const)('should detect RGB support via %s color mode', (colorMode) => {
+      const attributes = {
+        supported_color_modes: [colorMode],
+        supported_features: 0
+      }
+      mockUseEntity.mockReturnValue(createMockLightEntity('test', 'on', attributes))
+
+      const { result } = renderHook(() => useLight('light.test'))
+
+      expect(result.current.supportsRgb).toBe(true)
+    })
+
     it('should detect brightness support from attribute presence', () => {
       const attributes = {
         brightness: 200,
@@ -176,25 +188,27 @@ describe('useLight', () => {
     })
 
     it('should handle invalid color temperature values', () => {
+      // HA emits color_temp_kelvin after the 2026.3 mired removal:
+      // https://github.com/home-assistant/core/blob/dev/homeassistant/components/light/__init__.py
       const testCases = [
-        { color_temp: 0, expected: undefined },
-        { color_temp: -1, expected: undefined },
-        { color_temp: Infinity, expected: undefined },
-        { color_temp: NaN, expected: undefined },
-        { color_temp: null, expected: undefined },
-        { color_temp: undefined, expected: undefined },
-        { color_temp: 250, expected: 250 }
+        { color_temp_kelvin: 0, expected: undefined },
+        { color_temp_kelvin: -1, expected: undefined },
+        { color_temp_kelvin: Infinity, expected: undefined },
+        { color_temp_kelvin: NaN, expected: undefined },
+        { color_temp_kelvin: null, expected: undefined },
+        { color_temp_kelvin: undefined, expected: undefined },
+        { color_temp_kelvin: 3000, expected: 3000 }
       ]
 
-      testCases.forEach(({ color_temp, expected }) => {
+      testCases.forEach(({ color_temp_kelvin, expected }) => {
         const attributes = {
           supported_features: LightFeatures.SUPPORT_COLOR_TEMP,
-          color_temp
+          color_temp_kelvin
         }
         mockUseEntity.mockReturnValue(createMockLightEntity('test', 'on', attributes))
 
         const { result } = renderHook(() => useLight('light.test'))
-        
+
         expect(result.current.colorTemp).toBe(expected)
       })
     })
@@ -274,16 +288,16 @@ describe('useLight', () => {
   })
 
   describe('Color Controls', () => {
-    it('should return color temperature value', () => {
+    it('should return color temperature in kelvin', () => {
       const attributes = {
-        color_temp: 300,
+        color_temp_kelvin: 3000,
         supported_features: LightFeatures.SUPPORT_COLOR_TEMP
       }
       mockUseEntity.mockReturnValue(createMockLightEntity('test', 'on', attributes))
 
       const { result } = renderHook(() => useLight('light.test'))
 
-      expect(result.current.colorTemp).toBe(300)
+      expect(result.current.colorTemp).toBe(3000)
     })
 
     it('should return RGB color value', () => {
@@ -353,7 +367,7 @@ describe('useLight', () => {
 
       await expect(
         act(async () => {
-          await result.current.setColorTemp(300)
+          await result.current.setColorTemp(3000)
         })
       ).rejects.toThrow(FeatureNotSupportedError)
 
@@ -492,6 +506,45 @@ describe('useLight', () => {
       expect(mockCallService).toHaveBeenCalledWith('light', 'turn_on', { brightness: 128 })
     })
 
+    it('should accept color_temp_kelvin in turnOn parameters', async () => {
+      const mockCallService = vi.fn()
+      mockUseEntity.mockReturnValue({
+        ...createMockLightEntity('test', 'off', {
+          supported_color_modes: ['color_temp'],
+          min_color_temp_kelvin: 2000,
+          max_color_temp_kelvin: 6500
+        }),
+        callService: mockCallService
+      })
+
+      const { result } = renderHook(() => useLight('light.test'))
+
+      await act(async () => {
+        await result.current.turnOn({ color_temp_kelvin: 3000 })
+      })
+
+      expect(mockCallService).toHaveBeenCalledWith('light', 'turn_on', {
+        color_temp_kelvin: 3000
+      })
+    })
+
+    it('exposes the kelvin bounds so consumers can build sliders without reading raw attributes', () => {
+      mockUseEntity.mockReturnValue({
+        ...createMockLightEntity('test', 'on', {
+          supported_color_modes: ['color_temp'],
+          color_temp_kelvin: 3000,
+          min_color_temp_kelvin: 2000,
+          max_color_temp_kelvin: 6500
+        }),
+        callService: vi.fn()
+      })
+
+      const { result } = renderHook(() => useLight('light.test'))
+
+      expect(result.current.minColorTempKelvin).toBe(2000)
+      expect(result.current.maxColorTempKelvin).toBe(6500)
+    })
+
     it('should call light.turn_on service with multiple parameters', async () => {
       const mockCallService = vi.fn()
       mockUseEntity.mockReturnValue({
@@ -558,20 +611,48 @@ describe('useLight', () => {
       })
     })
 
-    it('should call setColorTemp correctly', async () => {
+    it('should send kelvin color temperature', async () => {
       const mockCallService = vi.fn()
       mockUseEntity.mockReturnValue({
-        ...createMockLightEntity('test', 'on', { supported_features: 2 }), // SUPPORT_COLOR_TEMP
+        ...createMockLightEntity('test', 'on', {
+          supported_color_modes: ['color_temp'],
+          min_color_temp_kelvin: 2000,
+          max_color_temp_kelvin: 6500
+        }),
         callService: mockCallService
       })
 
       const { result } = renderHook(() => useLight('light.test'))
 
       await act(async () => {
-        await result.current.setColorTemp(350)
+        await result.current.setColorTemp(3500)
       })
 
-      expect(mockCallService).toHaveBeenCalledWith('light', 'turn_on', { color_temp: 350 })
+      expect(mockCallService).toHaveBeenCalledWith('light', 'turn_on', {
+        color_temp_kelvin: 3500
+      })
+    })
+
+    it('should validate kelvin against the entity bounds', async () => {
+      const mockCallService = vi.fn()
+      mockUseEntity.mockReturnValue({
+        ...createMockLightEntity('test', 'on', {
+          supported_color_modes: ['color_temp'],
+          min_color_temp_kelvin: 2700,
+          max_color_temp_kelvin: 6500
+        }),
+        callService: mockCallService
+      })
+
+      const { result } = renderHook(() => useLight('light.test'))
+
+      await expect(result.current.setColorTemp(2699)).rejects.toThrow(
+        'Number must be greater than or equal to 2700'
+      )
+      await expect(result.current.setColorTemp(6501)).rejects.toThrow(
+        'Number must be less than or equal to 6500'
+      )
+      expect(mockCallService).not.toHaveBeenCalled()
     })
 
     it('should call setRgbColor correctly', async () => {
@@ -622,7 +703,7 @@ describe('useLight', () => {
 
       await expect(result.current.toggle()).rejects.toThrow('Service call failed')
       await expect(result.current.setBrightness(100)).rejects.toThrow('Service call failed')
-      await expect(result.current.setColorTemp(300)).rejects.toThrow('Service call failed')
+      await expect(result.current.setColorTemp(3000)).rejects.toThrow('Service call failed')
     })
   })
 

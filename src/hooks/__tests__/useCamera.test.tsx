@@ -227,7 +227,8 @@ describe('useCamera', () => {
       expect(result.current.imageUrl).toBeNull()
     })
 
-    it('should not expose camera access tokens through external transports', () => {
+    it('should warn once when external transports suppress direct image URLs', () => {
+      const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
       mockUseHAConnection.mockReturnValue({
         config: { url: 'https://dashboard.example.com', transport: {} }
       })
@@ -235,9 +236,15 @@ describe('useCamera', () => {
         access_token: 'must-not-reach-the-browser'
       }))
 
-      const { result } = renderHook(() => useCamera('camera.test'))
+      const { result, rerender } = renderHook(() => useCamera('camera.test'))
 
       expect(result.current.imageUrl).toBeNull()
+      rerender()
+      expect(consoleWarn).toHaveBeenCalledTimes(1)
+      expect(consoleWarn).toHaveBeenCalledWith(
+        '[useCamera] Direct camera image and MJPEG URLs are unavailable when using an external transport.'
+      )
+      consoleWarn.mockRestore()
     })
 
     it('should return null when no config URL', () => {
@@ -306,7 +313,7 @@ describe('useCamera', () => {
       expect(mockCallService).toHaveBeenCalledWith('camera', 'turn_off')
     })
 
-    it('should call camera.snapshot service on snapshot()', async () => {
+    it('should pass the required filename to camera.snapshot', async () => {
       const mockCallService = vi.fn()
       mockUseEntity.mockReturnValue({
         ...createMockCameraEntity('test'),
@@ -315,11 +322,15 @@ describe('useCamera', () => {
 
       const { result } = renderHook(() => useCamera('camera.test'))
 
+      // HA marks filename required for camera.snapshot:
+      // https://github.com/home-assistant/core/blob/dev/homeassistant/components/camera/services.yaml
       await act(async () => {
-        await result.current.snapshot()
+        await result.current.snapshot('/config/www/snapshots/test.jpg')
       })
 
-      expect(mockCallService).toHaveBeenCalledWith('camera', 'snapshot')
+      expect(mockCallService).toHaveBeenCalledWith('camera', 'snapshot', {
+        filename: '/config/www/snapshots/test.jpg'
+      })
     })
 
     it('should call motion detection services correctly', async () => {
@@ -342,7 +353,7 @@ describe('useCamera', () => {
       expect(mockCallService).toHaveBeenCalledWith('camera', 'disable_motion_detection')
     })
 
-    it('should call camera.play_stream service with media player', async () => {
+    it('should pass the required media player to camera.play_stream', async () => {
       const mockCallService = vi.fn()
       mockUseEntity.mockReturnValue({
         ...createMockCameraEntity('test', 'idle', { supported_features: CameraFeatures.SUPPORT_STREAM }),
@@ -351,30 +362,17 @@ describe('useCamera', () => {
 
       const { result } = renderHook(() => useCamera('camera.test'))
 
+      // HA marks media_player required for camera.play_stream:
+      // https://github.com/home-assistant/core/blob/dev/homeassistant/components/camera/services.yaml
       await act(async () => {
         await result.current.playStream('media_player.living_room_tv')
       })
 
-      expect(mockCallService).toHaveBeenCalledWith('camera', 'play_stream', { 
-        media_player: 'media_player.living_room_tv' 
+      expect(mockCallService).toHaveBeenCalledWith('camera', 'play_stream', {
+        media_player: 'media_player.living_room_tv'
       })
     })
 
-    it('should call camera.play_stream service without parameters', async () => {
-      const mockCallService = vi.fn()
-      mockUseEntity.mockReturnValue({
-        ...createMockCameraEntity('test', 'idle', { supported_features: CameraFeatures.SUPPORT_STREAM }),
-        callService: mockCallService
-      })
-
-      const { result } = renderHook(() => useCamera('camera.test'))
-
-      await act(async () => {
-        await result.current.playStream()
-      })
-
-      expect(mockCallService).toHaveBeenCalledWith('camera', 'play_stream', undefined)
-    })
 
     it('should call camera.record service with parameters', async () => {
       const mockCallService = vi.fn()
@@ -386,16 +384,16 @@ describe('useCamera', () => {
       const { result } = renderHook(() => useCamera('camera.test'))
 
       await act(async () => {
-        await result.current.record('recording.mp4', 30)
+        await result.current.record('/config/www/recordings/test.mp4', 30)
       })
 
       expect(mockCallService).toHaveBeenCalledWith('camera', 'record', { 
-        filename: 'recording.mp4',
+        filename: '/config/www/recordings/test.mp4',
         duration: 30
       })
     })
 
-    it('should call camera.record service without parameters', async () => {
+    it('should always pass filename when recording without a duration', async () => {
       const mockCallService = vi.fn()
       mockUseEntity.mockReturnValue({
         ...createMockCameraEntity('test'),
@@ -404,11 +402,15 @@ describe('useCamera', () => {
 
       const { result } = renderHook(() => useCamera('camera.test'))
 
+      // HA marks filename required for camera.record:
+      // https://github.com/home-assistant/core/blob/dev/homeassistant/components/camera/services.yaml
       await act(async () => {
-        await result.current.record()
+        await result.current.record('/config/www/recordings/test.mp4')
       })
 
-      expect(mockCallService).toHaveBeenCalledWith('camera', 'record', undefined)
+      expect(mockCallService).toHaveBeenCalledWith('camera', 'record', {
+        filename: '/config/www/recordings/test.mp4'
+      })
     })
   })
 
@@ -460,7 +462,7 @@ describe('useCamera', () => {
 
       await expect(
         act(async () => {
-          await result.current.playStream()
+          await result.current.playStream('media_player.living_room')
         })
       ).rejects.toThrow(FeatureNotSupportedError)
 
@@ -479,12 +481,14 @@ describe('useCamera', () => {
       const { result } = renderHook(() => useCamera('camera.test'))
 
       await expect(result.current.turnOn()).rejects.toThrow('Service call failed')
-      await expect(result.current.snapshot()).rejects.toThrow('Service call failed')
+      await expect(result.current.snapshot('/config/www/snapshots/test.jpg')).rejects.toThrow('Service call failed')
       await expect(result.current.enableMotionDetection()).rejects.toThrow('Service call failed')
     })
 
-    it('should handle play stream failures gracefully', async () => {
-      const mockCallService = vi.fn().mockRejectedValue(new Error('play_stream not supported'))
+    it('should preserve the original play_stream failure', async () => {
+      const originalError = new Error('Transport disconnected')
+      const mockCallService = vi.fn().mockRejectedValue(originalError)
+      const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
       mockUseEntity.mockReturnValue({
         ...createMockCameraEntity('test', 'idle', { supported_features: CameraFeatures.SUPPORT_STREAM }),
         callService: mockCallService
@@ -492,7 +496,11 @@ describe('useCamera', () => {
 
       const { result } = renderHook(() => useCamera('camera.test'))
 
-      await expect(result.current.playStream()).rejects.toThrow('Camera streaming not supported or media player required')
+      await expect(
+        result.current.playStream('media_player.living_room')
+      ).rejects.toBe(originalError)
+      expect(consoleError).toHaveBeenCalledWith('Play stream failed:', originalError)
+      consoleError.mockRestore()
     })
   })
 
@@ -645,7 +653,8 @@ describe('useCamera', () => {
         expect(url).toContain('token=test-token-123')
       })
 
-      it('should not construct tokenized MJPEG URLs for external transports', async () => {
+      it('should warn once instead of constructing external-transport MJPEG URLs', async () => {
+        const consoleWarn = vi.spyOn(console, 'warn').mockImplementation(() => {})
         mockUseHAConnection.mockReturnValue({
           config: { url: 'https://dashboard.example.com', transport: {} },
           connection: mockConnection
@@ -658,6 +667,9 @@ describe('useCamera', () => {
         const { result } = renderHook(() => useCamera('camera.test'))
 
         await expect(result.current.getStreamUrl({ type: 'mjpeg' })).resolves.toBeNull()
+        await expect(result.current.getStreamUrl({ type: 'mjpeg' })).resolves.toBeNull()
+        expect(consoleWarn).toHaveBeenCalledTimes(1)
+        consoleWarn.mockRestore()
       })
 
       it('should convert relative HLS URLs to absolute', async () => {
@@ -811,7 +823,7 @@ describe('useCamera', () => {
         expect(result.current.streamState.isActive).toBe(true)
       })
 
-      it('should handle stream errors', async () => {
+      it('should store stream errors and resolve for event-handler safety', async () => {
         const error = new Error('Stream not available')
         mockConnection.sendMessagePromise.mockRejectedValue(error)
 
@@ -821,20 +833,17 @@ describe('useCamera', () => {
 
         const { result } = renderHook(() => useCamera('camera.test'))
 
-        let caughtError: any
-        try {
-          await act(async () => {
-            await result.current.startStream({ type: 'hls' })
-          })
-        } catch (e) {
-          caughtError = e
-        }
+        await act(async () => {
+          await expect(
+            result.current.startStream({ type: 'hls' })
+          ).resolves.toBeUndefined()
+        })
 
-        expect(caughtError).toBeTruthy()
-        // Error message is enhanced by our error handling
-        expect(caughtError.message).toContain('streaming')
+        expect(result.current.streamState.error).toBeInstanceOf(Error)
+        expect(result.current.streamState.error?.message).toContain('streaming')
         expect(result.current.streamState.isActive).toBe(false)
         expect(result.current.streamState.isLoading).toBe(false)
+        expect(result.current.streamState.type).toBe('hls')
       })
 
       it('should default to HLS when type not specified', async () => {
@@ -916,18 +925,15 @@ describe('useCamera', () => {
 
         const { result } = renderHook(() => useCamera('camera.test'))
 
-        // First attempt fails
-        try {
-          await act(async () => {
-            await result.current.startStream({ type: 'hls' })
-          })
-        } catch (e) {
-          // Expected to throw
-        }
-
-        // Second attempt should work
+        // startStream resolves while preserving the failure for UI rendering.
         await act(async () => {
           await result.current.startStream({ type: 'hls' })
+        })
+        expect(result.current.streamState.isActive).toBe(false)
+        expect(result.current.streamState.error).toBeInstanceOf(Error)
+
+        await act(async () => {
+          await result.current.retryStream()
         })
 
         expect(result.current.streamState.isActive).toBe(true)

@@ -49,15 +49,24 @@ describe('entityId utilities', () => {
     })
 
     it('should include hook name in warning when provided', () => {
-      validateAndNormalizeDomain('fan.ceiling_fan', 'light', {
+      validateAndNormalizeDomain('switch.outlet', 'light', {
         warnOnWrongDomain: true,
         hookName: 'useLight'
       })
-      
+
       expect(consoleMock).toHaveBeenCalledWith(
-        'useLight: Entity "fan.ceiling_fan" has domain "fan" but expects "light" domain. ' +
+        'useLight: Entity "switch.outlet" has domain "switch" but expects "light" domain. ' +
         'This may not work as expected. Use useEntity() or the appropriate domain-specific hook instead.'
       )
+    })
+
+    it('should warn only once for repeated wrong-domain entity IDs', () => {
+      const options = { warnOnWrongDomain: true, hookName: 'useLight' }
+
+      validateAndNormalizeDomain('cover.repeated_warning', 'light', options)
+      validateAndNormalizeDomain('cover.repeated_warning', 'light', options)
+
+      expect(consoleMock).toHaveBeenCalledOnce()
     })
 
     it('should handle entities with multiple dots', () => {
@@ -81,11 +90,11 @@ describe('entityId utilities', () => {
 
     it('should create validator that warns on wrong domain', () => {
       const validateLight = createDomainValidator('light', 'useLight')
-      
-      const result = validateLight('fan.ceiling_fan')
-      expect(result).toBe('fan.ceiling_fan')
+
+      const result = validateLight('cover.garage')
+      expect(result).toBe('cover.garage')
       expect(consoleMock).toHaveBeenCalledWith(
-        'useLight: Entity "fan.ceiling_fan" has domain "fan" but expects "light" domain. ' +
+        'useLight: Entity "cover.garage" has domain "cover" but expects "light" domain. ' +
         'This may not work as expected. Use useEntity() or the appropriate domain-specific hook instead.'
       )
     })

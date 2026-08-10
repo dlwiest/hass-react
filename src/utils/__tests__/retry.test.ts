@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { withRetry, createRetryableFunction, delay, type RetryOptions } from '../retry'
+import {
+  withRetry,
+  createRetryableFunction,
+  delay,
+  getRetryOptionsFromConfig,
+} from '../retry'
 
 describe('retry utilities', () => {
   describe('withRetry', () => {
@@ -80,6 +85,20 @@ describe('retry utilities', () => {
       expect(operation).toHaveBeenCalledTimes(1) // Should not retry
     })
 
+    it('should use the stable error name instead of the constructor name', async () => {
+      class MinifiedError extends Error {
+        constructor(message: string) {
+          super(message)
+          this.name = 'FeatureNotSupportedError'
+        }
+      }
+
+      const operation = vi.fn().mockRejectedValue(new MinifiedError('not supported'))
+
+      await expect(withRetry(operation, { maxAttempts: 3 })).rejects.toThrow('not supported')
+      expect(operation).toHaveBeenCalledTimes(1)
+    })
+
     it('should respect custom shouldRetry function', async () => {
       const operation = vi.fn().mockRejectedValue(new Error('custom error'))
       const shouldRetry = vi.fn().mockReturnValue(false)
@@ -104,6 +123,30 @@ describe('retry utilities', () => {
       
       expect(operation).toHaveBeenCalledTimes(1) // Only one attempt with maxAttempts: 1
     })
+
+    it('should jitter the retry delay into the lower half-to-full delay window', async () => {
+      vi.useFakeTimers()
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      const operation = vi.fn()
+        .mockRejectedValueOnce(new Error('retry'))
+        .mockResolvedValue('success')
+
+      const result = withRetry(operation, {
+        maxAttempts: 2,
+        baseDelay: 1000,
+        exponentialBackoff: false,
+      })
+      await Promise.resolve()
+
+      expect(operation).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(499)
+      expect(operation).toHaveBeenCalledTimes(1)
+      await vi.advanceTimersByTimeAsync(1)
+
+      await expect(result).resolves.toBe('success')
+      expect(operation).toHaveBeenCalledTimes(2)
+      vi.useRealTimers()
+    })
   })
 
   describe('createRetryableFunction', () => {
@@ -122,6 +165,14 @@ describe('retry utilities', () => {
       expect(result).toBe('success')
       expect(originalFn).toHaveBeenCalledTimes(2)
       expect(originalFn).toHaveBeenCalledWith('arg1', 'arg2')
+    })
+  })
+
+  describe('getRetryOptionsFromConfig', () => {
+    it('should clamp maxAttempts to at least one', () => {
+      expect(getRetryOptionsFromConfig({ maxAttempts: 0 }).maxAttempts).toBe(1)
+      expect(getRetryOptionsFromConfig({ maxAttempts: -5 }).maxAttempts).toBe(1)
+      expect(getRetryOptionsFromConfig({ maxAttempts: 4 }).maxAttempts).toBe(4)
     })
   })
 

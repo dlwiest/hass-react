@@ -54,9 +54,9 @@ export interface CameraState extends BaseEntityHook<CameraAttributes>, CameraCap
   turnOff: () => Promise<void>
   enableMotionDetection: () => Promise<void>
   disableMotionDetection: () => Promise<void>
-  snapshot: () => Promise<void>
-  playStream: (mediaPlayer?: string) => Promise<void>
-  record: (filename?: string, duration?: number) => Promise<void>
+  snapshot: (filename: string) => Promise<void>
+  playStream: (mediaPlayer: string) => Promise<void>
+  record: (filename: string, duration?: number) => Promise<void>
   refreshImage: () => Promise<void>
 }
 

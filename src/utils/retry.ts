@@ -21,7 +21,7 @@ const DEFAULT_RETRY_OPTIONS: Required<RetryOptions> = {
   shouldRetry: (error: Error) => {
     // Don't retry for validation errors or unsupported features
     const nonRetryableErrors = ['FeatureNotSupportedError', 'InvalidParameterError', 'EntityNotAvailableError']
-    return !nonRetryableErrors.includes(error.constructor.name)
+    return !nonRetryableErrors.includes(error.name)
   }
 }
 
@@ -55,8 +55,9 @@ export async function withRetry<T>(
         delay = Math.min(config.baseDelay * Math.pow(2, attempt - 1), config.maxDelay)
       }
       
-      // Wait before retrying
-      await new Promise(resolve => setTimeout(resolve, delay))
+      // Spread callers across the backoff window instead of retrying in lockstep.
+      const jitteredDelay = delay * (0.5 + Math.random() * 0.5)
+      await new Promise(resolve => setTimeout(resolve, jitteredDelay))
     }
   }
   
@@ -89,7 +90,7 @@ export function getRetryOptionsFromConfig(
   }
 ): RetryOptions {
   return {
-    maxAttempts: serviceRetry?.maxAttempts ?? 3,
+    maxAttempts: Math.max(1, serviceRetry?.maxAttempts ?? 3),
     baseDelay: serviceRetry?.baseDelay ?? 1000,
     exponentialBackoff: serviceRetry?.exponentialBackoff ?? true,
     maxDelay: serviceRetry?.maxDelay ?? 10000,

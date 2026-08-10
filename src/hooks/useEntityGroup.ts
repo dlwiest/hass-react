@@ -3,17 +3,24 @@ import { useStore } from '../services/entityStore'
 import type { EntityState } from '../types'
 
 export function useEntityGroup(pattern: string | string[]): EntityState[] {
-  const patterns = Array.isArray(pattern) ? pattern : [pattern]
+  const patterns = Array.from(new Set(Array.isArray(pattern) ? pattern : [pattern]))
   const [entities, setEntities] = useState<EntityState[]>([])
 
   useEffect(() => {
-    // Update entities when patterns change
+    // Resolve only the requested keys and preserve the previous array when no
+    // member reference changed.
     const updateEntities = () => {
-      const allEntities = Array.from(useStore.getState().entities.values())
-      const matchingEntities = allEntities.filter((entity) => 
-        patterns.some((p) => entity.entity_id === p)
-      )
-      setEntities(matchingEntities)
+      const entityMap = useStore.getState().entities
+      const matchingEntities = patterns
+        .map((entityId) => entityMap.get(entityId))
+        .filter((entity): entity is EntityState => entity !== undefined)
+
+      setEntities((currentEntities) => {
+        const unchanged =
+          currentEntities.length === matchingEntities.length &&
+          currentEntities.every((entity, index) => entity === matchingEntities[index])
+        return unchanged ? currentEntities : matchingEntities
+      })
     }
 
     // Initial update

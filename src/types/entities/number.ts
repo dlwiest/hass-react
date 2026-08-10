@@ -12,7 +12,7 @@ export interface NumberAttributes {
 }
 
 export interface NumberState extends BaseEntityHook<NumberAttributes> {
-  value: number
+  value: number | null
   min: number
   max: number
   step: number

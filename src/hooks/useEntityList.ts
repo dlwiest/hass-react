@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useStore } from '../services/entityStore'
+import { subscribeAllStateChanges, useStore } from '../services/entityStore'
 import type { EntityState } from '../types/core'
 import type { StateChangedEvent } from '../types/websocket'
 
@@ -15,63 +15,76 @@ export function useEntityList<T extends { entity_id: string }>(domain: string): 
     if (!connection) return
 
     let isMounted = true
+    let snapshotPending = true
+    const eventsDuringSnapshot: StateChangedEvent[] = []
+    const domainPrefix = `${domain}.`
+
+    const applyEvent = (current: T[], event: StateChangedEvent): T[] => {
+      const index = current.findIndex(
+        (entity) => entity.entity_id === event.data.entity_id
+      )
+
+      if (event.data.new_state) {
+        const entity = event.data.new_state as unknown as T
+        if (index === -1) {
+          return [...current, entity]
+        }
+
+        const updated = [...current]
+        updated[index] = entity
+        return updated
+      }
+
+      if (index === -1) {
+        return current
+      }
+      return current.filter((entity) => entity.entity_id !== event.data.entity_id)
+    }
+
+    // Register locally before starting the snapshot so no event can land in the gap.
+    const unsubscribe = subscribeAllStateChanges((event) => {
+      if (!event.data.entity_id.startsWith(domainPrefix)) {
+        return
+      }
+
+      if (snapshotPending) {
+        eventsDuringSnapshot.push(event)
+      }
+      setEntities((current) => applyEvent(current, event))
+    })
 
     const fetchEntities = async () => {
       try {
-        // Fetch all states from Home Assistant
         const states = await connection.sendMessagePromise<EntityState[]>({
           type: 'get_states',
         })
 
-        // Filter for entities in this domain
+        if (!isMounted) {
+          return
+        }
+
         const domainEntities = states.filter(
-          (entity) => entity.entity_id.startsWith(`${domain}.`)
+          (entity) => entity.entity_id.startsWith(domainPrefix)
         ) as unknown as T[]
 
-        if (isMounted) {
-          setEntities(domainEntities)
-        }
+        // Replay events that arrived after get_states was sent. In particular, a
+        // removal event must remain a tombstone instead of being re-added by a
+        // stale snapshot response.
+        setEntities(() =>
+          eventsDuringSnapshot.reduce(applyEvent, domainEntities)
+        )
+        snapshotPending = false
       } catch (error) {
         console.error(`Failed to fetch ${domain} entities:`, error)
-        if (isMounted) {
-          setEntities([])
-        }
+        snapshotPending = false
       }
     }
 
-    // Initial fetch
-    fetchEntities()
-
-    // Subscribe to state changes to keep the list updated
-    const unsubscribe = connection.subscribeEvents((event: StateChangedEvent) => {
-      if (event.data.entity_id.startsWith(`${domain}.`)) {
-        setEntities(prev => {
-          const index = prev.findIndex((e: T) => e.entity_id === event.data.entity_id)
-
-          if (event.data.new_state) {
-            // Entity exists or was added
-            if (index >= 0) {
-              // Update existing entity
-              const updated = [...prev]
-              updated[index] = event.data.new_state as unknown as T
-              return updated
-            } else {
-              // Add new entity
-              return [...prev, event.data.new_state as unknown as T]
-            }
-          } else if (index >= 0) {
-            // Entity was removed
-            return prev.filter((e: T) => e.entity_id !== event.data.entity_id)
-          }
-
-          return prev
-        })
-      }
-    }, 'state_changed')
+    void fetchEntities()
 
     return () => {
       isMounted = false
-      unsubscribe.then(unsub => unsub()).catch(() => {})
+      unsubscribe()
     }
   }, [connection, domain])
 

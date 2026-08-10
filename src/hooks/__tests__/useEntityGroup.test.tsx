@@ -191,6 +191,21 @@ describe('useEntityGroup', () => {
 
       expect(result.current[0].state).toBe('on')
     })
+
+    it('should preserve the result reference when member references are unchanged', () => {
+      const entity = createMockEntity('light.living_room', 'on')
+      mockEntities.set(entity.entity_id, entity)
+
+      const { result } = renderHook(() => useEntityGroup(entity.entity_id))
+      const initialResult = result.current
+
+      act(() => {
+        const registeredCallback = mockRegisterEntity.mock.calls[0][1]
+        registeredCallback()
+      })
+
+      expect(result.current).toBe(initialResult)
+    })
   })
 
   describe('Store Integration', () => {

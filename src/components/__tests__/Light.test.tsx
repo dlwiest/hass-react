@@ -31,7 +31,7 @@ const createMockLightEntity = (
   brightness: attributes.brightness || 0,
   brightnessPercent: Math.round(((attributes.brightness || 0) / 255) * 100),
   rgbColor: attributes.rgb_color,
-  colorTemp: attributes.color_temp,
+  colorTemp: attributes.color_temp_kelvin,
   effect: attributes.effect,
   supportsBrightness: !!(attributes.supported_features & 1),
   supportsColorTemp: !!(attributes.supported_features & 2),
@@ -330,7 +330,7 @@ describe('Light', () => {
     it('should expose color temperature support', () => {
       const mockLightEntity = createMockLightEntity('light.test', 'on', {
         supported_features: 2, // SUPPORT_COLOR_TEMP
-        color_temp: 3000
+        color_temp_kelvin: 3000
       })
       mockUseLight.mockReturnValue(mockLightEntity)
 
@@ -502,7 +502,7 @@ describe('Light', () => {
       const mockLightEntity = createMockLightEntity('light.advanced', 'on', {
         supported_features: 23, // ALL features
         brightness: 255,
-        color_temp: 4000,
+        color_temp_kelvin: 4000,
         rgb_color: [255, 255, 255],
         effect: 'none'
       })

@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useReducer, useCallback, useRef, useState, ReactNode } from 'react'
+import { createContext, useContext, useEffect, useReducer, useCallback, useMemo, useRef, useState, ReactNode } from 'react'
 import type { Auth, Connection } from 'home-assistant-js-websocket'
 import { useStore } from '../services/entityStore'
 import { createMockConnection } from '../services/mockConnection'
@@ -10,6 +10,7 @@ import type { HAConfig, HAConnection, HATransport, HATransportHandlers, Connecti
 const BASE_PERIODIC_RETRY_DELAY_MS = 60 * 1000 // 1 minute
 const MAX_PERIODIC_RETRY_DELAY_MS = 16 * 60 * 1000 // 16 minutes
 const BASE_VISIBILITY_RETRY_DELAY_MS = 30 * 1000 // 30 seconds
+const DEFAULT_PROVIDER_OPTIONS: NonNullable<HAConfig['options']> = {}
 
 function observeTransportOperation(operation: void | Promise<void>, warning: string): void {
   if (operation) {
@@ -21,6 +22,7 @@ function observeTransportOperation(operation: void | Promise<void>, warning: str
 interface RetryState {
   timeouts: Set<NodeJS.Timeout>
   inProgress: boolean
+  cancelled: boolean
 }
 
 interface RetryConfig {
@@ -37,6 +39,7 @@ function createRetryExecutor(config: RetryConfig) {
     fn: () => Promise<T>,
     retryCount = 0
   ): Promise<T | void> {
+    if (config.retryState.cancelled) return
     config.retryState.inProgress = true
 
     try {
@@ -44,6 +47,11 @@ function createRetryExecutor(config: RetryConfig) {
       config.retryState.inProgress = false
       return result
     } catch (error) {
+      if (config.retryState.cancelled) {
+        config.retryState.inProgress = false
+        return
+      }
+
       if (retryCount < config.maxRetries) {
         const delayMs = Math.min(
           Math.pow(2, retryCount) * config.baseDelayMs,
@@ -63,10 +71,19 @@ function createRetryExecutor(config: RetryConfig) {
         // The caller doesn't need to wait for retries - state is tracked via inProgress flag
         const timeoutId = setTimeout(() => {
           config.retryState.timeouts.delete(timeoutId)
+          if (config.retryState.cancelled) {
+            config.retryState.inProgress = false
+            return
+          }
           executeWithRetry(fn, retryCount + 1).catch(err => {
             console.error(`${config.logContext} retry attempt threw an unhandled error:`, err)
           })
         }, delayMs)
+        if (config.retryState.cancelled) {
+          clearTimeout(timeoutId)
+          config.retryState.inProgress = false
+          return
+        }
         config.retryState.timeouts.add(timeoutId)
       } else {
         console.error(
@@ -77,6 +94,18 @@ function createRetryExecutor(config: RetryConfig) {
       }
     }
   }
+}
+
+function normalizeConnectionError(error: unknown): Error {
+  if (error instanceof Error) return error
+  if (error === 1) return new Error('Unable to connect to Home Assistant')
+  if (error === 2) return new Error('Home Assistant rejected the authentication credentials')
+
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    return new Error(String(error.message ?? error))
+  }
+
+  return new Error(String(error))
 }
 
 // Valid connection states
@@ -95,6 +124,7 @@ type ConnectionAction =
   | { type: 'DISCONNECTED' }
   | { type: 'RETRY_SCHEDULED' }
   | { type: 'MANUAL_RECONNECT' }
+  | { type: 'MANUAL_STOP' }
   | { type: 'READY_EVENT'; connection: HAConnection }
 
 // State machine
@@ -147,6 +177,7 @@ function connectionReducer(state: ConnectionState, action: ConnectionAction): Co
       }
 
     case 'MANUAL_RECONNECT':
+    case 'MANUAL_STOP':
       return {
         type: 'idle',
         connection: null,
@@ -155,6 +186,9 @@ function connectionReducer(state: ConnectionState, action: ConnectionAction): Co
       }
 
     case 'READY_EVENT':
+      if (state.type === 'connected' && state.connection === action.connection) {
+        return state
+      }
       // Accept ready events in most states to allow reconnection
       return {
         type: 'connected',
@@ -207,7 +241,7 @@ export const HAProvider = ({
   mockData,
   mockUser,
   transport,
-  options = {}
+  options = DEFAULT_PROVIDER_OPTIONS
 }: HAProviderProps) => {
   const usesExternalTransport = transport !== undefined
   const usesMockMode = mockMode && !usesExternalTransport
@@ -217,6 +251,8 @@ export const HAProvider = ({
     error: null,
     retryCount: 0
   })
+  const connectedRef = useRef(false)
+  connectedRef.current = state.type === 'connected'
 
   const retryTimeoutRef = useRef<NodeJS.Timeout>()
   const currentConnectionRef = useRef<HAConnection | null>(null)
@@ -228,10 +264,10 @@ export const HAProvider = ({
   // Grouped token refresh state
   const periodicRefreshState = useRef({
     intervalRef: undefined as NodeJS.Timeout | undefined,
-    retry: { timeouts: new Set<NodeJS.Timeout>(), inProgress: false } as RetryState
+    retry: { timeouts: new Set<NodeJS.Timeout>(), inProgress: false, cancelled: false } as RetryState
   })
   const visibilityRefreshState = useRef({
-    retry: { timeouts: new Set<NodeJS.Timeout>(), inProgress: false } as RetryState
+    retry: { timeouts: new Set<NodeJS.Timeout>(), inProgress: false, cancelled: false } as RetryState
   })
   const [lastConnectedAt, setLastConnectedAt] = useState<Date>()
   const [nextRetryIn, setNextRetryIn] = useState<number>()
@@ -278,34 +314,37 @@ export const HAProvider = ({
 
   // Auth state management
   const auth = useAuth((usesMockMode || usesExternalTransport) ? null : (url ?? null), authMode)
+  const authLogout = auth.logout
 
   // Development warnings for configuration issues
   useEffect(() => {
-    if (usesExternalTransport) {
-      if (mockMode) {
-        console.warn('HAProvider: transport takes precedence over mockMode.')
-      }
-      if (token || redirectUri) {
-        console.warn('HAProvider: token and redirectUri are ignored when transport is provided.')
-      }
-    } else if (!usesMockMode) {
-      if (!url) {
-        console.warn('HAProvider: url prop is required when neither mockMode nor transport is provided.')
-      } else if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('ws://') && !url.startsWith('wss://')) {
-        console.warn(`HAProvider: url "${url}" should start with http://, https://, ws://, or wss://`)
-      }
+    if (typeof process !== 'undefined' && process.env.NODE_ENV !== 'production') {
+      if (usesExternalTransport) {
+        if (mockMode) {
+          console.warn('HAProvider: transport takes precedence over mockMode.')
+        }
+        if (token || redirectUri) {
+          console.warn('HAProvider: token and redirectUri are ignored when transport is provided.')
+        }
+      } else if (!usesMockMode) {
+        if (!url) {
+          console.warn('HAProvider: url prop is required when neither mockMode nor transport is provided.')
+        } else if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('ws://') && !url.startsWith('wss://')) {
+          console.warn(`HAProvider: url "${url}" should start with http://, https://, ws://, or wss://`)
+        }
 
-      // Only warn about missing token if using token auth mode
-      const effectiveAuthMode = authMode === 'auto' ? (token ? 'token' : 'oauth') : authMode
-      if (effectiveAuthMode === 'token' && !token) {
-        console.warn('HAProvider: token prop is required when using token authentication. Create a long-lived access token in Home Assistant or use OAuth mode.')
-      }
-    } else {
-      if (!mockData) {
-        console.warn('HAProvider: mockMode is enabled but no mockData provided. Entities will have empty state.')
-      }
-      if (token) {
-        console.warn('HAProvider: token prop provided in mock mode is unnecessary and will be ignored.')
+        // Only warn about missing token if using token auth mode
+        const effectiveAuthMode = authMode === 'auto' ? (token ? 'token' : 'oauth') : authMode
+        if (effectiveAuthMode === 'token' && !token) {
+          console.warn('HAProvider: token prop is required when using token authentication. Create a long-lived access token in Home Assistant or use OAuth mode.')
+        }
+      } else {
+        if (!mockData) {
+          console.warn('HAProvider: mockMode is enabled but no mockData provided. Entities will have empty state.')
+        }
+        if (token) {
+          console.warn('HAProvider: token prop provided in mock mode is unnecessary and will be ignored.')
+        }
       }
     }
   }, [url, token, redirectUri, mockMode, mockData, authMode, usesExternalTransport, usesMockMode])
@@ -320,18 +359,19 @@ export const HAProvider = ({
         cleanupConnection()
 
         let transportConnection: HAConnection | null = null
+        let disconnectedBeforeReady = false
         const handlers: HATransportHandlers = {
           onDisconnected: () => {
             // Ignore a late disconnect notification from a connection that has
             // already been replaced by a manual or automatic reconnect.
-            if (
-              attemptId !== connectionAttemptRef.current ||
-              !transportConnection ||
-              currentConnectionRef.current !== transportConnection
-            ) return
+            if (attemptId !== connectionAttemptRef.current) return
+            if (!transportConnection) {
+              disconnectedBeforeReady = true
+              return
+            }
+            if (currentConnectionRef.current !== transportConnection) return
 
             const connection = transportConnection
-            currentConnectionRef.current = null
             try {
               observeTransportOperation(
                 transport.disconnect(connection),
@@ -340,11 +380,10 @@ export const HAProvider = ({
             } catch (error) {
               console.warn('Failed to disconnect external transport:', error)
             }
-            try {
-              setStoreConnection(null)
-            } catch (error) {
+            currentConnectionRef.current = null
+            void Promise.resolve(setStoreConnection(null)).catch((error) => {
               console.warn('Failed to clear store connection:', error)
-            }
+            })
             dispatch({ type: 'DISCONNECTED' })
           },
         }
@@ -358,18 +397,34 @@ export const HAProvider = ({
           return
         }
         transportConnection = connection
+        if (disconnectedBeforeReady) {
+          try {
+            observeTransportOperation(
+              transport.disconnect(connection),
+              'Failed to disconnect external transport:'
+            )
+          } catch (error) {
+            console.warn('Failed to disconnect external transport:', error)
+          }
+          currentConnectionRef.current = null
+          void Promise.resolve(setStoreConnection(null)).catch((error) => {
+            console.warn('Failed to clear store connection:', error)
+          })
+          dispatch({ type: 'DISCONNECTED' })
+          return
+        }
+
         currentConnectionRef.current = connection
         setLastConnectedAt(new Date())
         dispatch({ type: 'CONNECTION_SUCCESS', connection })
-        try {
-          setStoreConnection(connection)
-        } catch (error) {
+        void Promise.resolve(setStoreConnection(connection)).catch((error) => {
           console.warn('Failed to set store connection:', error)
-        }
+        })
       } catch (error) {
         if (attemptId !== connectionAttemptRef.current || manuallyStoppedRef.current) return
-        console.error('External Home Assistant transport failed to connect:', error)
-        dispatch({ type: 'CONNECTION_ERROR', error: error as Error })
+        const connectionError = normalizeConnectionError(error)
+        console.error('External Home Assistant transport failed to connect:', connectionError)
+        dispatch({ type: 'CONNECTION_ERROR', error: connectionError })
       }
       return
     }
@@ -396,11 +451,9 @@ export const HAProvider = ({
       currentConnectionRef.current = mockConn
       setLastConnectedAt(new Date())
       dispatch({ type: 'CONNECTION_SUCCESS', connection: mockConn })
-      try {
-        setStoreConnection(mockConn)
-      } catch (error) {
+      void Promise.resolve(setStoreConnection(mockConn)).catch((error) => {
         console.warn('Failed to set store connection:', error)
-      }
+      })
       return
     }
 
@@ -429,26 +482,34 @@ export const HAProvider = ({
       currentAuthRef.current = auth
 
       // Set up event listeners with cleanup tracking
+      let disconnectHandled = false
       const handleDisconnected = () => {
-        currentConnectionRef.current = null
+        if (disconnectHandled || currentConnectionRef.current !== conn) return
+        disconnectHandled = true
         try {
-          setStoreConnection(null)
+          conn.close()
         } catch (error) {
-          console.warn('Failed to clear store connection:', error)
+          console.warn('Failed to close disconnected connection:', error)
         }
+        currentConnectionRef.current = null
+        void Promise.resolve(setStoreConnection(null)).catch((error) => {
+          console.warn('Failed to clear store connection:', error)
+        })
         dispatch({ type: 'DISCONNECTED' })
       }
 
       const handleReady = () => {
         // Use READY_EVENT action - reducer will only accept if in valid state
+        const alreadyReady = connectedRef.current && currentConnectionRef.current === conn
+        disconnectHandled = false
         currentConnectionRef.current = conn
-        setLastConnectedAt(new Date())
-        dispatch({ type: 'READY_EVENT', connection: conn })
-        try {
-          setStoreConnection(conn)
-        } catch (error) {
-          console.warn('Failed to set store connection:', error)
+        if (!alreadyReady) {
+          setLastConnectedAt(new Date())
         }
+        dispatch({ type: 'READY_EVENT', connection: conn })
+        void Promise.resolve(setStoreConnection(conn)).catch((error) => {
+          console.warn('Failed to set store connection:', error)
+        })
       }
 
       conn.addEventListener('disconnected', handleDisconnected)
@@ -463,16 +524,26 @@ export const HAProvider = ({
       currentConnectionRef.current = conn
       setLastConnectedAt(new Date())
       dispatch({ type: 'CONNECTION_SUCCESS', connection: conn })
-      try {
-        setStoreConnection(conn)
-      } catch (error) {
+      void Promise.resolve(setStoreConnection(conn)).catch((error) => {
         console.warn('Failed to set store connection:', error)
-      }
+      })
     } catch (err) {
       if (attemptId !== connectionAttemptRef.current || manuallyStoppedRef.current) return
-      const error = err as Error
+      if (
+        typeof err === 'object' &&
+        err !== null &&
+        'code' in err &&
+        'redirecting' in err &&
+        err.code === 'auth_expired' &&
+        err.redirecting === true
+      ) {
+        console.info('OAuth redirect in progress; connection retry is paused.')
+        return
+      }
+
+      const error = normalizeConnectionError(err)
       let helpfulMessage = `Connection failed: ${error.message}`
-      
+
       // Provide helpful debugging information
       if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
         helpfulMessage += '\n\nPossible causes:\n• Home Assistant is not running\n• URL is incorrect\n• Network connectivity issues\n• CORS issues (try using ws:// instead of http://)'
@@ -481,7 +552,7 @@ export const HAProvider = ({
       } else if (error.message.includes('WebSocket connection') || error.message.includes('ws://')) {
         helpfulMessage += '\n\nWebSocket connection issues:\n• Check if WebSocket is enabled in Home Assistant\n• Verify the WebSocket URL format\n• Check firewall/proxy settings'
       }
-      
+
       console.error(helpfulMessage)
       dispatch({ type: 'CONNECTION_ERROR', error })
     }
@@ -493,10 +564,11 @@ export const HAProvider = ({
     // Clear any pending retries
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = undefined
     }
 
     dispatch({ type: 'START_CONNECTING' })
-    attemptConnection()
+    void attemptConnection()
   }, [attemptConnection])
 
   // Manual reconnection (resets retry count)
@@ -505,6 +577,7 @@ export const HAProvider = ({
     connectionAttemptRef.current += 1
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = undefined
     }
 
     if (!usesMockMode) {
@@ -513,10 +586,15 @@ export const HAProvider = ({
 
     dispatch({ type: 'MANUAL_RECONNECT' })
     // Manual reconnect starts immediately
-    setTimeout(() => {
+    const reconnectTimeout = setTimeout(() => {
+      if (retryTimeoutRef.current === reconnectTimeout) {
+        retryTimeoutRef.current = undefined
+      }
+      if (manuallyStoppedRef.current) return
       dispatch({ type: 'START_CONNECTING' })
-      attemptConnection()
+      void attemptConnection()
     }, 0)
+    retryTimeoutRef.current = reconnectTimeout
   }, [attemptConnection, usesMockMode, cleanupConnection])
 
   // Logout function that immediately closes connection
@@ -534,7 +612,7 @@ export const HAProvider = ({
         const logoutResult = transport?.logout?.()
         observeTransportOperation(logoutResult, 'Failed to log out cleanly:')
       } else {
-        auth.logout()
+        authLogout()
       }
     } catch (error) {
       console.warn('Failed to log out cleanly:', error)
@@ -548,90 +626,101 @@ export const HAProvider = ({
     }
 
     // Clear all pending retry timeouts and reset state
+    periodicRefreshState.current.retry.cancelled = true
     periodicRefreshState.current.retry.timeouts.forEach(clearTimeout)
     periodicRefreshState.current.retry.timeouts.clear()
     periodicRefreshState.current.retry.inProgress = false
 
+    visibilityRefreshState.current.retry.cancelled = true
     visibilityRefreshState.current.retry.timeouts.forEach(clearTimeout)
     visibilityRefreshState.current.retry.timeouts.clear()
     visibilityRefreshState.current.retry.inProgress = false
 
     // Immediately close WebSocket connection
     cleanupConnection()
-    try {
-      setStoreConnection(null)
-    } catch (error) {
+    void Promise.resolve(setStoreConnection(null)).catch((error) => {
       console.warn('Failed to clear store connection:', error)
-    }
-    dispatch({ type: 'DISCONNECTED' })
-  }, [auth, transport, usesExternalTransport, setStoreConnection, cleanupConnection])
+    })
+    dispatch({ type: 'MANUAL_STOP' })
+  }, [authLogout, transport, usesExternalTransport, setStoreConnection, cleanupConnection])
 
   // Handle auto-retry for disconnections and errors
-  useEffect(() => {
-    const shouldAutoRetry = (state.type === 'disconnected' || state.type === 'error') &&
-      !usesMockMode &&
-      !manuallyStoppedRef.current &&
-      options.autoReconnect !== false
+  const hasPendingAutoRetry = (state.type === 'disconnected' || state.type === 'error') &&
+    !usesMockMode &&
+    !manuallyStoppedRef.current &&
+    options.autoReconnect !== false
 
-    if (shouldAutoRetry) {
+  useEffect(() => {
+    if (hasPendingAutoRetry) {
       const delay = Math.min(1000 * Math.pow(2, state.retryCount - 1), 30000)
       setNextRetryIn(delay)
 
-      // Update countdown every second
+      // Update countdown every second, including the final zero.
       const countdownInterval = setInterval(() => {
-        setNextRetryIn(prev => prev && prev > 1000 ? prev - 1000 : undefined)
+        setNextRetryIn(prev => prev === undefined ? undefined : Math.max(0, prev - 1000))
       }, 1000)
 
-      retryTimeoutRef.current = setTimeout(() => {
-        setNextRetryIn(undefined)
+      const retryTimeout = setTimeout(() => {
+        if (retryTimeoutRef.current === retryTimeout) {
+          retryTimeoutRef.current = undefined
+        }
+        setNextRetryIn(0)
+        if (manuallyStoppedRef.current) return
         dispatch({ type: 'RETRY_SCHEDULED' })
-        attemptConnection()
+        void attemptConnection()
       }, delay)
+      retryTimeoutRef.current = retryTimeout
 
       return () => {
         clearInterval(countdownInterval)
+        clearTimeout(retryTimeout)
+        if (retryTimeoutRef.current === retryTimeout) {
+          retryTimeoutRef.current = undefined
+        }
         setNextRetryIn(undefined)
       }
-    } else {
-      setNextRetryIn(undefined)
     }
 
-    return () => {
-      if (retryTimeoutRef.current) {
-        clearTimeout(retryTimeoutRef.current)
-      }
-    }
-  }, [state.type, state.retryCount, usesMockMode, options.autoReconnect, attemptConnection])
+    setNextRetryIn(undefined)
+    return undefined
+  }, [hasPendingAutoRetry, state.retryCount, attemptConnection])
 
-  // Periodic token refresh - runs when connected and using OAuth
+  // Periodic token refresh - checks on a stable cadence while using OAuth
+  const effectiveAuthMode = authMode === 'auto' ? (token ? 'token' : 'oauth') : authMode
   useEffect(() => {
-    if (state.type === 'connected' && currentAuthRef.current && !usesMockMode && !usesExternalTransport && authMode !== 'token') {
+    if (!usesMockMode && !usesExternalTransport && effectiveAuthMode !== 'token') {
       const refreshIntervalMs = (options.tokenRefreshIntervalMinutes || 30) * 60 * 1000
+      const bufferMinutes = options.tokenRefreshBufferMinutes || DEFAULT_TOKEN_BUFFER_MINUTES
+      const retryState: RetryState = {
+        timeouts: new Set<NodeJS.Timeout>(),
+        inProgress: false,
+        cancelled: false
+      }
+      periodicRefreshState.current.retry = retryState
 
       // Create retry executor with exponential backoff
       const executePeriodicRefresh = createRetryExecutor({
         maxRetries: 5,
         baseDelayMs: BASE_PERIODIC_RETRY_DELAY_MS,
         maxDelayMs: MAX_PERIODIC_RETRY_DELAY_MS,
-        retryState: periodicRefreshState.current.retry,
+        retryState,
         logContext: 'Token refresh'
       })
 
-      // Set up periodic refresh interval
+      // Keep the interval stable across connection flaps and check live connectivity in the tick.
       periodicRefreshState.current.intervalRef = setInterval(() => {
-        // Skip if a retry is already in progress
-        if (periodicRefreshState.current.retry.inProgress) {
+        if (!connectedRef.current || retryState.inProgress) {
           return
         }
 
         // Clear any pending retry timeouts before starting a new sequence
-        periodicRefreshState.current.retry.timeouts.forEach(clearTimeout)
-        periodicRefreshState.current.retry.timeouts.clear()
+        retryState.timeouts.forEach(clearTimeout)
+        retryState.timeouts.clear()
 
-        // Periodically refresh the access token to keep it valid
-        executePeriodicRefresh(async () => {
-          if (!currentAuthRef.current) return
-          await currentAuthRef.current.refreshAccessToken()
+        void executePeriodicRefresh(async () => {
+          const currentAuth = currentAuthRef.current
+          if (!currentAuth) return
+          currentAuthRef.current = await refreshTokenIfNeeded(currentAuth, bufferMinutes)
         })
       }, refreshIntervalMs)
 
@@ -640,41 +729,47 @@ export const HAProvider = ({
           clearInterval(periodicRefreshState.current.intervalRef)
           periodicRefreshState.current.intervalRef = undefined
         }
-        // Clear any pending retry timeouts
-        periodicRefreshState.current.retry.timeouts.forEach(clearTimeout)
-        periodicRefreshState.current.retry.timeouts.clear()
-        periodicRefreshState.current.retry.inProgress = false
+        retryState.cancelled = true
+        retryState.timeouts.forEach(clearTimeout)
+        retryState.timeouts.clear()
+        retryState.inProgress = false
       }
     }
     return undefined
-  }, [state.type, usesMockMode, usesExternalTransport, authMode, options.tokenRefreshIntervalMinutes, options.tokenRefreshBufferMinutes])
+  }, [usesMockMode, usesExternalTransport, effectiveAuthMode, options.tokenRefreshIntervalMinutes, options.tokenRefreshBufferMinutes])
 
   // Visibility change handler - refresh tokens when app becomes visible
   useEffect(() => {
-    if (!usesMockMode && !usesExternalTransport && authMode !== 'token') {
+    if (!usesMockMode && !usesExternalTransport && effectiveAuthMode !== 'token') {
       const bufferMinutes = options.tokenRefreshBufferMinutes || DEFAULT_TOKEN_BUFFER_MINUTES
+      const retryState: RetryState = {
+        timeouts: new Set<NodeJS.Timeout>(),
+        inProgress: false,
+        cancelled: false
+      }
+      visibilityRefreshState.current.retry = retryState
 
       // Create retry executor with exponential backoff
       const executeVisibilityRefresh = createRetryExecutor({
         maxRetries: 3,
         baseDelayMs: BASE_VISIBILITY_RETRY_DELAY_MS,
-        retryState: visibilityRefreshState.current.retry,
+        retryState,
         logContext: 'Visibility change token refresh'
       })
 
-      const handleVisibilityChange = async () => {
-        if (document.visibilityState === 'visible' && currentAuthRef.current && state.type === 'connected') {
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && currentAuthRef.current && connectedRef.current) {
           // Skip if a retry is already in progress
-          if (visibilityRefreshState.current.retry.inProgress) {
+          if (retryState.inProgress) {
             return
           }
 
           // Clear any pending retry timeouts before starting a new sequence
-          visibilityRefreshState.current.retry.timeouts.forEach(clearTimeout)
-          visibilityRefreshState.current.retry.timeouts.clear()
+          retryState.timeouts.forEach(clearTimeout)
+          retryState.timeouts.clear()
 
           // Execute token refresh with retry
-          executeVisibilityRefresh(async () => {
+          void executeVisibilityRefresh(async () => {
             if (!currentAuthRef.current) return
             const refreshedAuth = await refreshTokenIfNeeded(currentAuthRef.current, bufferMinutes)
             currentAuthRef.current = refreshedAuth
@@ -686,38 +781,46 @@ export const HAProvider = ({
 
       return () => {
         document.removeEventListener('visibilitychange', handleVisibilityChange)
-        // Clear any pending visibility refresh retry timeouts
-        visibilityRefreshState.current.retry.timeouts.forEach(clearTimeout)
-        visibilityRefreshState.current.retry.timeouts.clear()
-        visibilityRefreshState.current.retry.inProgress = false
+        retryState.cancelled = true
+        retryState.timeouts.forEach(clearTimeout)
+        retryState.timeouts.clear()
+        retryState.inProgress = false
       }
     }
     return undefined
-  }, [state.type, usesMockMode, usesExternalTransport, authMode, options.tokenRefreshBufferMinutes])
+  }, [usesMockMode, usesExternalTransport, effectiveAuthMode, options.tokenRefreshBufferMinutes])
+
+  const connectRef = useRef(connect)
+  const cleanupConnectionRef = useRef(cleanupConnection)
+  connectRef.current = connect
+  cleanupConnectionRef.current = cleanupConnection
 
   // Auto-connect on mount
   useEffect(() => {
-    connect()
+    connectRef.current()
 
     return () => {
       manuallyStoppedRef.current = true
       connectionAttemptRef.current += 1
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current)
+        retryTimeoutRef.current = undefined
       }
       if (periodicRefreshState.current.intervalRef) {
         clearInterval(periodicRefreshState.current.intervalRef)
       }
       // Clear all pending retry timeouts and reset state
+      periodicRefreshState.current.retry.cancelled = true
       periodicRefreshState.current.retry.timeouts.forEach(clearTimeout)
       periodicRefreshState.current.retry.timeouts.clear()
       periodicRefreshState.current.retry.inProgress = false
 
+      visibilityRefreshState.current.retry.cancelled = true
       visibilityRefreshState.current.retry.timeouts.forEach(clearTimeout)
       visibilityRefreshState.current.retry.timeouts.clear()
       visibilityRefreshState.current.retry.inProgress = false
 
-      cleanupConnection()
+      cleanupConnectionRef.current()
       currentAuthRef.current = null
       try {
         useStore.getState().clear()
@@ -729,7 +832,19 @@ export const HAProvider = ({
   }, [])
 
   // Map internal state to public interface
-  const contextValue: HAContextValue<HAConnection> = {
+  const config = useMemo<HAConfig>(() => ({
+    url,
+    token,
+    authMode,
+    redirectUri,
+    mockMode,
+    mockData,
+    mockUser,
+    transport,
+    options
+  }), [url, token, authMode, redirectUri, mockMode, mockData, mockUser, transport, options])
+
+  const contextValue = useMemo<HAContextValue<HAConnection>>(() => ({
     connection: state.connection,
     connected: state.type === 'connected',
     connecting: state.type === 'connecting',
@@ -739,14 +854,10 @@ export const HAProvider = ({
     connectionState: state.type,
     retryCount: state.retryCount,
     nextRetryIn,
-    isAutoRetrying: (state.type === 'disconnected' || state.type === 'error') &&
-                   !usesMockMode &&
-                   !manuallyStoppedRef.current &&
-                   options.autoReconnect !== false &&
-                   !!nextRetryIn,
+    isAutoRetrying: hasPendingAutoRetry,
     lastConnectedAt,
-    config: { url, token, authMode, redirectUri, mockMode, mockData, mockUser, transport, options },
-  }
+    config,
+  }), [state, reconnect, handleLogout, nextRetryIn, hasPendingAutoRetry, lastConnectedAt, config])
 
   return <HAContext.Provider value={contextValue}>{children}</HAContext.Provider>
 }

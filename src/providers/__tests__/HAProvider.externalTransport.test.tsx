@@ -214,6 +214,32 @@ describe('HAProvider external transport', () => {
     await waitFor(() => expect(useStore.getState().connection).toBeNull())
   })
 
+  it('treats a disconnect raised before connect resolves as an immediate disconnect', async () => {
+    const connection: HAConnection = {
+      sendMessagePromise: vi.fn(),
+      subscribeEvents: vi.fn(),
+    }
+    const transport: HATransport = {
+      connect: vi.fn(async (handlers) => {
+        handlers.onDisconnected()
+        return connection
+      }),
+      disconnect: vi.fn(),
+    }
+
+    render(
+      <HAProvider url="http://gateway.local" transport={transport} options={{ autoReconnect: false }}>
+        <ConnectionHarness />
+      </HAProvider>
+    )
+
+    await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('disconnected'))
+    expect(screen.getByTestId('connected')).toHaveTextContent('false')
+    expect(screen.getByTestId('connection')).toHaveTextContent('missing')
+    expect(transport.disconnect).toHaveBeenCalledWith(connection)
+    expect(useStore.getState().connection).toBeNull()
+  })
+
   it('uses transport lifecycle methods for reconnect, logout, and unmount', async () => {
     const fixture = createExternalFixture()
     const rendered = render(

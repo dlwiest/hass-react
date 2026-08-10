@@ -13,6 +13,8 @@ const fanSpeedSchema = z.string().min(1)
 const commandSchema = z.string().min(1)
 const paramsSchema = z.record(z.any()).optional()
 
+const EMPTY_FAN_SPEEDS: string[] = []
+
 export function useVacuum(entityId: string): VacuumState {
   const normalizedEntityId = validateVacuumEntityId(entityId)
   const entity = useEntity<VacuumAttributes>(normalizedEntityId)
@@ -46,7 +48,7 @@ export function useVacuum(entityId: string): VacuumState {
   const batteryLevel = attributes.battery_level ?? null
   const fanSpeed = attributes.fan_speed ?? null
   const status = attributes.status ?? null
-  const availableFanSpeeds = attributes.fan_speed_list || []
+  const availableFanSpeeds = attributes.fan_speed_list || EMPTY_FAN_SPEEDS
 
   // State booleans based on state string
   const isCharging = status?.toLowerCase().includes('charging') || false
@@ -57,6 +59,20 @@ export function useVacuum(entityId: string): VacuumState {
   const isError = state === 'error'
 
   // Control methods
+  const turnOn = useCallback(async () => {
+    if (!supportsTurnOn) {
+      throw new FeatureNotSupportedError(normalizedEntityId, 'turn on')
+    }
+    await callService('vacuum', 'turn_on')
+  }, [callService, normalizedEntityId, supportsTurnOn])
+
+  const turnOff = useCallback(async () => {
+    if (!supportsTurnOff) {
+      throw new FeatureNotSupportedError(normalizedEntityId, 'turn off')
+    }
+    await callService('vacuum', 'turn_off')
+  }, [callService, normalizedEntityId, supportsTurnOff])
+
   const start = useCallback(async () => {
     if (!supportsStart) {
       throw new FeatureNotSupportedError(normalizedEntityId, 'start')
@@ -152,6 +168,8 @@ export function useVacuum(entityId: string): VacuumState {
     supportsLocate,
     supportsCleanSpot,
     supportsStart,
+    turnOn,
+    turnOff,
     start,
     pause,
     stop,

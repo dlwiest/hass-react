@@ -32,7 +32,8 @@ export default [
         URL: 'readonly',
         crypto: 'readonly',
         JSX: 'readonly',
-        HTMLVideoElement: 'readonly'
+        HTMLVideoElement: 'readonly',
+        process: 'readonly'
       }
     },
     plugins: {

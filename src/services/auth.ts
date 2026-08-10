@@ -1,11 +1,13 @@
-import { 
-  getAuth, 
-  createConnection, 
+import {
+  getAuth,
+  createConnection,
   createLongLivedTokenAuth,
   Auth,
   Connection,
+  ERR_CANNOT_CONNECT,
+  ERR_INVALID_AUTH,
   type AuthData,
-  type SaveTokensFunc 
+  type SaveTokensFunc
 } from 'home-assistant-js-websocket'
 import type { AuthConfig, AuthError, StoredAuthData } from '../types/auth'
 import { saveAuthData, loadAuthData, removeAuthData } from './tokenStorage'
@@ -14,6 +16,7 @@ import { saveAuthData, loadAuthData, removeAuthData } from './tokenStorage'
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 export const DEFAULT_TOKEN_BUFFER_MINUTES = 5 // Buffer time before token expiration to trigger refresh
 const OAUTH_REDIRECT_IN_PROGRESS_KEY = 'hass-oauth-redirecting'
+const refreshPromises = new WeakMap<Auth, Promise<Auth>>()
 
 // Generate OAuth authorization URL for Home Assistant
 export function getOAuthUrl(hassUrl: string, redirectUri?: string): string {
@@ -97,19 +100,14 @@ export async function handleOAuthCallback(hassUrl: string): Promise<Auth> {
   sessionStorage.removeItem(OAUTH_REDIRECT_IN_PROGRESS_KEY)
 
   // Exchange code for tokens
+  const saveTokens = createSaveTokens(hassUrl)
+
   const auth = await getAuth({
     hassUrl,
     authCode: code,
     clientId: window.location.origin, // Use origin as client_id to match OAuth request
-    redirectUrl: window.location.href.split('?')[0] // Use current URL without query params
-  })
-  
-  // Store the auth data
-  saveAuthData(hassUrl, {
-    access_token: auth.data.access_token,
-    refresh_token: auth.data.refresh_token,
-    expires_at: auth.data.expires,
-    client_id: window.location.origin
+    redirectUrl: window.location.href.split('?')[0], // Use current URL without query params
+    saveTokens
   })
   
   // Clean up OAuth parameters from URL
@@ -136,11 +134,11 @@ export async function createAuthenticatedConnection(config: AuthConfig): Promise
 
     if (storedAuth) {
       // Check if stored token is already expired
-      if (storedAuth.expires_at && storedAuth.expires_at < Date.now()) {
-        // Token expired - clear it and fall through to OAuth flow
+      if (storedAuth.expires_at && storedAuth.expires_at < Date.now() && !storedAuth.refresh_token) {
+        // An expired access token without a refresh token cannot be renewed
         removeAuthData(hassUrl)
       } else {
-        // Use stored tokens - periodic refresh will handle renewal for expiring tokens
+        // Keep refreshable records so Auth can silently renew the access token
         auth = createAuthFromStoredData(storedAuth)
       }
     }
@@ -174,7 +172,10 @@ export async function createAuthenticatedConnection(config: AuthConfig): Promise
 
         // Redirect to OAuth
         window.location.href = getOAuthUrl(hassUrl, config.redirectUri)
-        throw createAuthError('auth_expired', 'Redirecting to authentication')
+        throw Object.assign(
+          createAuthError('auth_expired', 'Redirecting to authentication'),
+          { redirecting: true as const }
+        )
       }
     }
   } else {
@@ -185,18 +186,46 @@ export async function createAuthenticatedConnection(config: AuthConfig): Promise
     auth = createLongLivedTokenAuth(hassUrl, token)
   }
   
-  // Create and return connection with auth object
-  const connection = await createConnection({ auth })
-  return { connection, auth }
+  // Normalize the websocket library's numeric connection errors at this boundary
+  try {
+    const connection = await createConnection({ auth })
+    return { connection, auth }
+  } catch (error) {
+    if (error === ERR_INVALID_AUTH) {
+      // An expired Auth with a refresh token reaches this path when refresh is rejected
+      if (auth.expired && auth.data.refresh_token) {
+        removeAuthData(hassUrl)
+      }
+      throw createAuthError('invalid_credentials', 'Home Assistant rejected the authentication credentials')
+    }
+    if (error === ERR_CANNOT_CONNECT) {
+      throw createAuthError('network', 'Unable to connect to Home Assistant')
+    }
+    if (error instanceof Error) {
+      throw error
+    }
+    throw createAuthError('unknown', 'Unable to create a Home Assistant connection')
+  }
 }
 
 // Logout and clear stored authentication
-export function logout(hassUrl: string): void {
+export async function logout(hassUrl: string, auth?: Auth): Promise<void> {
   if (!hassUrl || typeof hassUrl !== 'string') {
     throw createAuthError('config_error', 'hassUrl is required and must be a string')
   }
-  
+
+  if (auth) {
+    try {
+      await auth.revoke()
+    } catch (error) {
+      console.warn('Failed to revoke authentication:', error)
+    }
+  }
+
   removeAuthData(hassUrl)
+  sessionStorage.removeItem('hass-oauth-state')
+  sessionStorage.removeItem(OAUTH_REDIRECT_IN_PROGRESS_KEY)
+
   // Clear URL parameters if they exist
   if (window.location.search.includes('code=')) {
     const url = new URL(window.location.href)
@@ -219,6 +248,23 @@ function generateRandomState(): string {
   return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
+// Create a persistence callback shared by new and restored OAuth sessions
+function createSaveTokens(hassUrl: string): SaveTokensFunc {
+  return (data: AuthData | null) => {
+    if (!data) {
+      removeAuthData(hassUrl)
+      return
+    }
+
+    saveAuthData(hassUrl, {
+      access_token: data.access_token,
+      refresh_token: data.refresh_token,
+      expires_at: data.expires,
+      client_id: data.clientId
+    })
+  }
+}
+
 // Create Auth from stored token data with refresh capability
 function createAuthFromStoredData(storedAuth: StoredAuthData): Auth {
   if (storedAuth.refresh_token) {
@@ -229,22 +275,10 @@ function createAuthFromStoredData(storedAuth: StoredAuthData): Auth {
       expires: storedAuth.expires_at || Date.now() + ONE_DAY_MS,
       refresh_token: storedAuth.refresh_token,
       access_token: storedAuth.access_token,
-      expires_in: Math.floor((storedAuth.expires_at || Date.now() + ONE_DAY_MS) - Date.now()) / 1000
+      expires_in: Math.floor(((storedAuth.expires_at || Date.now() + ONE_DAY_MS) - Date.now()) / 1000)
     }
     
-    // Create save function that updates our localStorage
-    const saveTokens: SaveTokensFunc = (data: AuthData | null) => {
-      if (data) {
-        saveAuthData(storedAuth.hassUrl, {
-          access_token: data.access_token,
-          refresh_token: data.refresh_token,
-          expires_at: data.expires,
-          client_id: data.clientId
-        })
-      }
-    }
-    
-    return new Auth(authData, saveTokens)
+    return new Auth(authData, createSaveTokens(storedAuth.hassUrl))
   } else {
     // Fallback to long-lived token (no refresh capability)
     return createLongLivedTokenAuth(storedAuth.hassUrl, storedAuth.access_token)
@@ -269,18 +303,55 @@ export function isTokenExpiring(auth: Auth, bufferMinutes: number = DEFAULT_TOKE
 }
 
 // Refresh auth token if needed
-export async function refreshTokenIfNeeded(auth: Auth, bufferMinutes: number = DEFAULT_TOKEN_BUFFER_MINUTES): Promise<Auth> {
-  if (isTokenExpiring(auth, bufferMinutes)) {
+export function refreshTokenIfNeeded(auth: Auth, bufferMinutes: number = DEFAULT_TOKEN_BUFFER_MINUTES): Promise<Auth> {
+  const inFlight = refreshPromises.get(auth)
+  if (inFlight) {
+    return inFlight
+  }
+
+  if (!isTokenExpiring(auth, bufferMinutes)) {
+    return Promise.resolve(auth)
+  }
+
+  const refreshPromise = (async () => {
     try {
       await auth.refreshAccessToken()
       return auth
     } catch (error) {
       console.error('[Auth] Token refresh failed:', error)
-      // Refresh failed - token might be revoked
-      throw createAuthError('auth_expired', 'Token refresh failed: ' + (error instanceof Error ? error.message : 'Unknown error'))
+      const invalidGrant = isInvalidGrantError(error)
+      if (invalidGrant) {
+        removeAuthData(auth.data.hassUrl)
+      }
+      throw createAuthError(
+        'auth_expired',
+        'Token refresh failed: ' + (error instanceof Error ? error.message : 'Unknown error'),
+        invalidGrant ? 'invalid_grant' : undefined
+      )
+    } finally {
+      refreshPromises.delete(auth)
     }
+  })()
+
+  refreshPromises.set(auth, refreshPromise)
+  return refreshPromise
+}
+
+function isInvalidGrantError(error: unknown): boolean {
+  if (error === ERR_INVALID_AUTH || error === 'invalid_grant') {
+    return true
   }
-  return auth
+
+  if (error instanceof Error) {
+    return error.message.toLowerCase().includes('invalid_grant')
+  }
+
+  if (typeof error !== 'object' || error === null) {
+    return false
+  }
+
+  const errorRecord = error as { code?: unknown; error?: unknown }
+  return errorRecord.code === 'invalid_grant' || errorRecord.error === 'invalid_grant'
 }
 
 // Create standardized auth errors with user-friendly messages

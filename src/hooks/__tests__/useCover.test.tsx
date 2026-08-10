@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act } from '@testing-library/react'
 import { useCover } from '../useCover'
 import { useEntity } from '../useEntity'
+import { CoverFeatures } from '../../types'
+import { FeatureNotSupportedError } from '../../utils/errors'
 
 // Mock useEntity since useCover depends on it
 vi.mock('../useEntity')
@@ -167,6 +169,32 @@ describe('useCover', () => {
     })
   })
 
+  describe('Feature Detection', () => {
+    it('should expose HA set-position and stop support', () => {
+      mockUseEntity.mockReturnValue(createMockCoverEntity('open', {
+        // HA CoverEntityFeature.SET_POSITION is 4 and STOP is 8:
+        // https://github.com/home-assistant/core/blob/dev/homeassistant/components/cover/__init__.py
+        supported_features: 4 | 8
+      }))
+
+      const { result } = renderHook(() => useCover('cover.test'))
+
+      expect(result.current.supportsSetPosition).toBe(true)
+      expect(result.current.supportsStop).toBe(true)
+    })
+
+    it('should keep unsupported capabilities false', () => {
+      mockUseEntity.mockReturnValue(createMockCoverEntity('closed', {
+        supported_features: CoverFeatures.OPEN | CoverFeatures.CLOSE
+      }))
+
+      const { result } = renderHook(() => useCover('cover.test'))
+
+      expect(result.current.supportsSetPosition).toBe(false)
+      expect(result.current.supportsStop).toBe(false)
+    })
+  })
+
   describe('Service Calls', () => {
     it('should call cover.open_cover service on open()', async () => {
       const mockCallService = vi.fn()
@@ -203,7 +231,7 @@ describe('useCover', () => {
     it('should call cover.stop_cover service on stop()', async () => {
       const mockCallService = vi.fn()
       mockUseEntity.mockReturnValue({
-        ...createMockCoverEntity('opening'),
+        ...createMockCoverEntity('opening', { supported_features: CoverFeatures.STOP }),
         callService: mockCallService
       })
 
@@ -219,7 +247,7 @@ describe('useCover', () => {
     it('should call cover.set_cover_position service on setPosition()', async () => {
       const mockCallService = vi.fn()
       mockUseEntity.mockReturnValue({
-        ...createMockCoverEntity(),
+        ...createMockCoverEntity('closed', { supported_features: CoverFeatures.SET_POSITION }),
         callService: mockCallService
       })
 
@@ -235,7 +263,7 @@ describe('useCover', () => {
     it('should handle setPosition with various values', async () => {
       const mockCallService = vi.fn()
       mockUseEntity.mockReturnValue({
-        ...createMockCoverEntity(),
+        ...createMockCoverEntity('closed', { supported_features: CoverFeatures.SET_POSITION }),
         callService: mockCallService
       })
 
@@ -261,7 +289,9 @@ describe('useCover', () => {
     it('should handle service call errors', async () => {
       const mockCallService = vi.fn().mockRejectedValue(new Error('Service call failed'))
       mockUseEntity.mockReturnValue({
-        ...createMockCoverEntity(),
+        ...createMockCoverEntity('closed', {
+          supported_features: CoverFeatures.SET_POSITION | CoverFeatures.STOP
+        }),
         callService: mockCallService
       })
 
@@ -271,6 +301,20 @@ describe('useCover', () => {
       await expect(result.current.close()).rejects.toThrow('Service call failed')
       await expect(result.current.stop()).rejects.toThrow('Service call failed')
       await expect(result.current.setPosition(50)).rejects.toThrow('Service call failed')
+    })
+
+    it('should reject unsupported stop and position actions before calling HA', async () => {
+      const mockCallService = vi.fn()
+      mockUseEntity.mockReturnValue({
+        ...createMockCoverEntity('closed', { supported_features: 0 }),
+        callService: mockCallService
+      })
+
+      const { result } = renderHook(() => useCover('cover.test'))
+
+      await expect(result.current.stop()).rejects.toThrow(FeatureNotSupportedError)
+      await expect(result.current.setPosition(50)).rejects.toThrow(FeatureNotSupportedError)
+      expect(mockCallService).not.toHaveBeenCalled()
     })
 
     it('should maintain callback references for performance', () => {
