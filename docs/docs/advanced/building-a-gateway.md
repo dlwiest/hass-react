@@ -4,20 +4,120 @@ sidebar_position: 4
 
 # Building a Gateway
 
-[External Transports](/docs/advanced/external-transports) covers the contract hass-react expects. This page builds the other half: the gateway server that owns your Home Assistant credential, plus the browser transport that talks to it. The complete runnable version lives in [`examples/transport-gateway`](https://github.com/dlwiest/hass-react/tree/master/examples/transport-gateway).
+[External Transports](/docs/advanced/external-transports) covers the contract hass-react expects. This page builds the other half: the gateway server that owns your Home Assistant credential, plus the browser transport that talks to it.
 
 ```text
 Home Assistant  <-- WebSocket, long-lived token -->  gateway (Node)
 gateway  <-- SSE events + HTTP commands -->  browser running hass-react
 ```
 
-The browser never sees the token. It sends allowlisted commands to an HTTP endpoint and receives `state_changed` events over one Server-Sent Events stream. hass-react treats the pair as a connection and keeps all of its usual behavior: entity subscriptions, service calls, and reconnection.
+The browser never sees the token. It sends commands to an HTTP endpoint and receives `state_changed` events over one Server-Sent Events stream. hass-react treats the pair as a connection and keeps all of its usual behavior: entity subscriptions, service calls, and reconnection.
 
-## The server
+## Running the example
 
-Node 22 or newer, one dependency (`home-assistant-js-websocket`, the same client Home Assistant's frontend uses; Node 22 provides the WebSocket implementation it needs).
+The complete server is about 130 lines and lives in [`examples/transport-gateway`](https://github.com/dlwiest/hass-react/tree/master/examples/transport-gateway). Grab both halves directly:
 
-Start with the part that makes a gateway worth having, the authorization boundary:
+```bash
+curl -O https://raw.githubusercontent.com/dlwiest/hass-react/master/examples/transport-gateway/server.mjs
+curl -O https://raw.githubusercontent.com/dlwiest/hass-react/master/examples/transport-gateway/client-transport.js
+```
+
+Node 22 or newer, one dependency:
+
+```bash
+npm install home-assistant-js-websocket
+HA_URL=http://homeassistant.local:8123 HA_TOKEN=<long-lived token> node server.mjs
+```
+
+The rest of this page walks through how it's put together, in the order you'd write it.
+
+## Connecting upstream
+
+The gateway talks to Home Assistant with `home-assistant-js-websocket`, the same client Home Assistant's own frontend uses (Node 22 provides the WebSocket implementation it needs). A long-lived token from your profile page authenticates it:
+
+```js
+import {
+  createConnection,
+  createLongLivedTokenAuth,
+} from 'home-assistant-js-websocket'
+
+const HA_URL = process.env.HA_URL ?? 'http://homeassistant.local:8123'
+const HA_TOKEN = process.env.HA_TOKEN
+
+const auth = createLongLivedTokenAuth(HA_URL, HA_TOKEN)
+const connection = await createConnection({auth})
+```
+
+Upstream reconnection is free: `createConnection` retries on its own when Home Assistant restarts or drops.
+
+The gateway holds exactly one upstream subscription and fans events out to every connected browser:
+
+```js
+const sseClients = new Set()
+
+await connection.subscribeEvents((event) => {
+  const payload = `data: ${JSON.stringify(event)}\n\n`
+  for (const res of sseClients) res.write(payload)
+}, 'state_changed')
+```
+
+## The browser-facing routes
+
+Two routes on a plain `http` server. `GET /api/events` registers a browser for the event stream:
+
+```js
+if (req.method === 'GET' && req.url === '/api/events') {
+  res.writeHead(200, {
+    'content-type': 'text/event-stream',
+    'cache-control': 'no-cache',
+    connection: 'keep-alive',
+  })
+  res.write(': connected\n\n')
+  sseClients.add(res)
+  req.on('close', () => sseClients.delete(res))
+  return
+}
+```
+
+`POST /api/command` parses one JSON message and forwards it upstream:
+
+```js
+if (req.method === 'POST' && req.url === '/api/command') {
+  // ...read the request body with a size bound (see the full example)...
+
+  let message
+  try {
+    message = JSON.parse(body)
+  } catch {
+    res.writeHead(400).end(JSON.stringify({error: 'invalid JSON'}))
+    return
+  }
+
+  if (!authorize(message)) {
+    res.writeHead(403).end(JSON.stringify({error: `not allowed: ${message.type}`}))
+    return
+  }
+
+  try {
+    const result = await connection.sendMessagePromise(message)
+    res.writeHead(200, {'content-type': 'application/json'})
+    res.end(JSON.stringify(result ?? null))
+  } catch (error) {
+    const id = crypto.randomUUID()
+    console.error(`command failed [${id}]`, error)
+    res.writeHead(502, {'content-type': 'application/json'})
+    // Error details stay in the gateway log; the browser gets a reference.
+    res.end(JSON.stringify({error: 'upstream command failed', ref: id}))
+  }
+  return
+}
+```
+
+Two details to keep: upstream error text stays in the gateway log and the browser gets a reference id, not Home Assistant internals. And that `authorize` call is load-bearing, because everything else on this page is an open proxy.
+
+## The authorization boundary
+
+Without `authorize`, any client that can reach the gateway can send any command to Home Assistant: unlock doors, disarm the alarm, call `homeassistant.stop`. The gateway's job is to narrow that to what your dashboard actually does. Enumerate it:
 
 ```js
 const ALLOWED_COMMANDS = new Set(['get_states', 'auth/current_user'])
@@ -59,50 +159,7 @@ function authorize(message) {
 }
 ```
 
-Everything the browser may do is enumerated: commands, services per domain, and optionally entities per domain. A request that doesn't match is rejected before it touches Home Assistant, so a compromised or curious client can't call `homeassistant.stop` just because the gateway is reachable. Setting an entity set instead of `null` narrows control to exactly the devices your dashboard shows.
-
-The upstream side is a normal `home-assistant-js-websocket` connection with a long-lived token. One `state_changed` subscription fans out to every connected browser:
-
-```js
-import {createConnection, createLongLivedTokenAuth} from 'home-assistant-js-websocket'
-
-const auth = createLongLivedTokenAuth(process.env.HA_URL, process.env.HA_TOKEN)
-const connection = await createConnection({auth})
-
-const sseClients = new Set()
-
-await connection.subscribeEvents((event) => {
-  const payload = `data: ${JSON.stringify(event)}\n\n`
-  for (const res of sseClients) res.write(payload)
-}, 'state_changed')
-```
-
-Upstream reconnection is free: `createConnection` retries on its own when Home Assistant restarts or drops.
-
-The browser-facing half is two routes on a plain `http` server. `GET /api/events` registers an SSE client; `POST /api/command` parses one JSON message, authorizes it, and forwards it:
-
-```js
-if (req.method === 'POST' && req.url === '/api/command') {
-  const message = JSON.parse(body) // bound the body size before this
-
-  if (!authorize(message)) {
-    res.writeHead(403).end(JSON.stringify({error: `not allowed: ${message.type}`}))
-    return
-  }
-
-  try {
-    const result = await connection.sendMessagePromise(message)
-    res.writeHead(200, {'content-type': 'application/json'})
-    res.end(JSON.stringify(result ?? null))
-  } catch (error) {
-    const ref = crypto.randomUUID()
-    console.error(`command failed [${ref}]`, error)
-    res.writeHead(502).end(JSON.stringify({error: 'upstream command failed', ref}))
-  }
-}
-```
-
-Upstream error details stay in the gateway log. The browser gets a reference id, not Home Assistant internals.
+A request that doesn't match is rejected before it touches Home Assistant. Setting an entity set instead of `null` narrows control to exactly the devices your dashboard shows.
 
 ## The client transport
 
@@ -117,7 +174,7 @@ export function createGatewayTransport(baseUrl) {
     connect(handlers) {
       return new Promise((resolve, reject) => {
         const events = new EventSource(`${baseUrl}/api/events`)
-        const subscribers = new Map()
+        const subscribers = new Map() // eventType|undefined -> Set<callback>
         let settled = false
         let notifiedDisconnect = false
 
@@ -128,7 +185,9 @@ export function createGatewayTransport(baseUrl) {
               headers: {'content-type': 'application/json'},
               body: JSON.stringify(message),
             })
-            if (!response.ok) throw new Error(`gateway returned ${response.status}`)
+            if (!response.ok) {
+              throw new Error(`gateway returned ${response.status}`)
+            }
             return response.json()
           },
 
