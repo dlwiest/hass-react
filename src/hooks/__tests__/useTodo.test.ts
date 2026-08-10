@@ -390,14 +390,16 @@ describe('useTodo', () => {
   })
 
   it('should ignore a stale item response after a mutation refresh', async () => {
-    const {
-      promise: initialRequest,
-      resolve: resolveInitial
-    } = Promise.withResolvers<unknown>()
-    const {
-      promise: refreshRequest,
-      resolve: resolveRefresh
-    } = Promise.withResolvers<unknown>()
+    // Manual resolver pair: Promise.withResolvers is ES2024 and absent on Node 20,
+    // which CI still runs.
+    let resolveInitial!: (value: unknown) => void
+    const initialRequest = new Promise<unknown>((resolve) => {
+      resolveInitial = resolve
+    })
+    let resolveRefresh!: (value: unknown) => void
+    const refreshRequest = new Promise<unknown>((resolve) => {
+      resolveRefresh = resolve
+    })
     const mockCallServiceWithResponse = vi.fn()
       .mockReturnValueOnce(initialRequest)
       .mockReturnValueOnce(refreshRequest)
