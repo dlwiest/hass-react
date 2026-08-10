@@ -4,19 +4,19 @@ sidebar_position: 14
 
 # Weather
 
-Display weather conditions, temperature, humidity, wind, and forecast data from Home Assistant weather integrations.
+Read current conditions from Home Assistant weather integrations: temperature, humidity, wind, pressure, and more.
 
 ## Quick Example
 
 ```tsx
 // Component approach
 <Weather entityId="weather.home">
-  {({ condition, temperature, temperatureUnit, humidity, windSpeed }) => (
+  {({ condition, temperature, temperatureUnit, humidity, windSpeed, windSpeedUnit }) => (
     <div>
       <p>Condition: {condition}</p>
       <p>Temperature: {temperature}{temperatureUnit}</p>
       <p>Humidity: {humidity}%</p>
-      <p>Wind: {windSpeed} mph</p>
+      <p>Wind: {windSpeed} {windSpeedUnit}</p>
     </div>
   )}
 </Weather>
@@ -50,19 +50,19 @@ The Weather component provides these props to your render function:
 #### State Properties
 - **`condition`** (`string`) - Current weather condition (sunny, cloudy, rainy, etc.)
 - **`temperature`** (`number | null`) - Current temperature
-- **`temperatureUnit`** (`string`) - Temperature unit (°F or °C, defaults to °F)
+- **`temperatureUnit`** (`string | undefined`) - Temperature unit as reported by Home Assistant (°C or °F); `undefined` if the integration doesn't report one
 - **`humidity`** (`number | null`) - Current humidity percentage
 - **`pressure`** (`number | null`) - Current atmospheric pressure
-- **`pressureUnit`** (`string`) - Pressure unit (inHg or hPa, defaults to inHg)
+- **`pressureUnit`** (`string | undefined`) - Pressure unit (hPa, inHg, etc.); `undefined` when not reported
 - **`windSpeed`** (`number | null`) - Wind speed
-- **`windSpeedUnit`** (`string`) - Wind speed unit (mph or km/h, defaults to mph)
+- **`windSpeedUnit`** (`string | undefined`) - Wind speed unit (km/h, mph, etc.); `undefined` when not reported
 - **`windBearing`** (`number | null`) - Wind direction in degrees (0-360)
 - **`visibility`** (`number | null`) - Visibility distance
-- **`visibilityUnit`** (`string`) - Visibility unit (mi or km, defaults to mi)
+- **`visibilityUnit`** (`string | undefined`) - Visibility unit (km or mi); `undefined` when not reported
 - **`cloudCoverage`** (`number | null`) - Cloud coverage percentage
 - **`dewPoint`** (`number | null`) - Dew point temperature
 - **`apparentTemperature`** (`number | null`) - "Feels like" temperature
-- **`precipitationUnit`** (`string`) - Precipitation unit (in or mm, defaults to in)
+- **`precipitationUnit`** (`string | undefined`) - Precipitation unit (mm or in); `undefined` when not reported
 
 #### Entity Properties
 - **`entityId`** (`string`) - The entity ID
@@ -91,7 +91,7 @@ function MyComponent() {
 }
 ```
 
-The `useWeather` hook returns an object with all the same properties and methods as the component's render props.
+`useWeather` returns the same properties as the component's render props.
 
 ## Examples
 
@@ -341,7 +341,7 @@ function WeatherLocation({ entityId }) {
 
 ## Weather Conditions
 
-The following standard weather conditions are supported:
+Home Assistant reports these standard conditions:
 
 - `clear-night` - Clear night sky
 - `cloudy` - Cloudy
@@ -361,7 +361,7 @@ The following standard weather conditions are supported:
 
 ## TypeScript
 
-The library includes full TypeScript support with these types:
+Weather entities come with these type definitions:
 
 ```typescript
 import type { WeatherState, WeatherAttributes, WeatherCondition } from 'hass-react'

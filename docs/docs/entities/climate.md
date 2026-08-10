@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Climate
 
-Control thermostats, AC units, and HVAC systems with temperature, mode, and fan control.
+Control thermostats and HVAC systems: target temperature, mode, fan, and presets.
 
 ## Quick Example
 
@@ -68,8 +68,8 @@ The Climate component provides these props to your render function:
 - **`supportedModes`** (`string[]`) - List of available HVAC modes
 - **`supportedFanModes`** (`string[]`) - List of available fan modes
 - **`supportedPresetModes`** (`string[]`) - List of available preset modes
-- **`minTemp`** (`number`) - Minimum supported temperature
-- **`maxTemp`** (`number`) - Maximum supported temperature
+- **`minTemp`** (`number`) - Minimum supported temperature. If the device doesn't report one, falls back to 45°F or 7°C depending on the entity's temperature unit
+- **`maxTemp`** (`number`) - Maximum supported temperature. Falls back to 95°F or 35°C the same way
 
 #### Control Methods
 - **`setMode(mode: string)`** - Set HVAC mode (heat, cool, auto, off, etc.)
@@ -100,11 +100,11 @@ function MyComponent() {
 }
 ```
 
-The `useClimate` hook returns an object with all the same properties and methods as the component's render props.
+`useClimate` returns the same properties and methods as the component's render props.
 
 ## List All Climate Devices
 
-Use the `useClimates` hook to retrieve all available climate entities:
+The `useClimates` hook returns every climate entity Home Assistant knows about:
 
 ```tsx
 import { useClimates } from 'hass-react'
@@ -125,7 +125,7 @@ function ClimateList() {
 }
 ```
 
-The `useClimates` hook fetches all climate entities from Home Assistant and returns an array of climate objects.
+It returns an array of climate entity objects, one per device.
 
 ## Examples
 

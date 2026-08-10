@@ -4,7 +4,7 @@ sidebar_position: 4
 
 # Lock
 
-Control smart locks with lock, unlock, and open functionality.
+Lock and unlock smart locks. Locks with a latch can also be opened.
 
 ## Quick Example
 
@@ -85,11 +85,11 @@ function MyComponent() {
 }
 ```
 
-The `useLock` hook returns an object with all the same properties and methods as the component's render props.
+`useLock` gives you the same properties and methods as the component's render props.
 
 ## List All Locks
 
-Use the `useLocks` hook to retrieve all available lock entities:
+`useLocks` returns every lock entity:
 
 ```tsx
 import { useLocks } from 'hass-react'
@@ -110,7 +110,7 @@ function LockList() {
 }
 ```
 
-The `useLocks` hook fetches all lock entities from Home Assistant and returns an array of lock objects.
+It returns an array of lock entity objects.
 
 ## Examples
 

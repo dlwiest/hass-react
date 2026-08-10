@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Binary Sensor
 
-Monitor binary sensors like door/window sensors, motion detectors, smoke alarms, and more.
+Track on/off sensors: doors and windows, motion, smoke, water leaks.
 
 ## Quick Example
 
@@ -41,7 +41,7 @@ import { BinarySensor } from 'hass-react'
 
 ### Render Props
 
-The BinarySensor component provides these props to your render function:
+Available render props:
 
 #### State Properties
 - **`isOn`** (`boolean`) - Whether the sensor is in the "on" state (triggered)
@@ -71,11 +71,11 @@ function MyComponent() {
 }
 ```
 
-The `useBinarySensor` hook returns an object with all the same properties and methods as the component's render props.
+The returned object matches the component's render props.
 
 ## List All Binary Sensors
 
-Use the `useBinarySensors` hook to retrieve all available binary sensor entities:
+`useBinarySensors` lists every binary sensor:
 
 ```tsx
 import { useBinarySensors } from 'hass-react'
@@ -95,8 +95,6 @@ function BinarySensorList() {
   )
 }
 ```
-
-The `useBinarySensors` hook fetches all binary sensor entities from Home Assistant and returns an array of binary sensor objects.
 
 ## Examples
 

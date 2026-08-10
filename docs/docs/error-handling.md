@@ -1,10 +1,10 @@
 # Error Handling & Connection Status
 
-Building reliable Home Assistant interfaces requires proper error handling and connection management. hass-react provides comprehensive tools for managing errors and monitoring connection status.
+Networks drop, entities disappear, service calls fail. hass-react gives you typed errors and connection state hooks so your UI can handle all of it.
 
 ## Error Types and Handling
 
-hass-react provides specific error types to help you handle different scenarios appropriately. All custom errors extend `HomeAssistantError` and include:
+Errors are typed so you can branch on what actually went wrong. All custom errors extend `HomeAssistantError` and include:
 
 - **message**: Technical error message for logging/debugging
 - **userMessage**: User-friendly message safe to display in UI
@@ -105,7 +105,7 @@ function LightControl() {
 ### Entity Availability Errors
 
 ```tsx
-function RobustSensorDisplay() {
+function SensorDisplay() {
   const sensor = useSensor('sensor.temperature');
   const { connected } = useHAConnection();
 
@@ -182,7 +182,7 @@ function SmartLightControl() {
 
 ## Monitoring Connection Status
 
-Many errors are related to connection state. The `useHAConnection` hook provides complete access to your Home Assistant connection state:
+Many errors come down to connection state. The `useHAConnection` hook exposes all of it:
 
 ```tsx
 import { useHAConnection } from 'hass-react';
@@ -231,7 +231,7 @@ function ConnectionStatus() {
 
 ### Connection States
 
-The `connectionState` property provides detailed status information:
+The `connectionState` property tells you exactly where the connection is:
 
 ```tsx
 function DetailedConnectionStatus() {
@@ -420,4 +420,4 @@ function LightControl() {
 }
 ```
 
-With proper error handling and connection management, your Home Assistant interface will be robust and provide a great user experience even when network issues occur.
+Most of this comes down to two habits: check `connected` before rendering controls, and surface errors instead of swallowing them.

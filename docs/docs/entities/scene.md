@@ -4,7 +4,7 @@ sidebar_position: 9
 
 # Scene
 
-Activate predefined scenes in Home Assistant that set multiple devices to specific states simultaneously.
+Activate scenes defined in Home Assistant. One call sets every device in the scene to its saved state.
 
 ## Quick Example
 
@@ -44,7 +44,7 @@ import { Scene } from 'hass-react'
 
 ### Render Props
 
-The Scene component provides these props to your render function:
+The Scene component provides these props:
 
 #### Control Methods
 - **`activate(transition?: number): Promise<void>`** - Activate the scene with optional transition time in seconds
@@ -72,11 +72,11 @@ function MyComponent() {
 }
 ```
 
-The `useScene` hook returns an object with all the same properties and methods as the component's render props.
+Same properties and methods as the component.
 
 ## List All Scenes
 
-Use the `useScenes` hook to retrieve all available scene entities:
+For all scenes at once, there's `useScenes`:
 
 ```tsx
 import { useScenes } from 'hass-react'
@@ -96,8 +96,6 @@ function SceneList() {
   )
 }
 ```
-
-The `useScenes` hook fetches all scene entities from Home Assistant and returns an array of scene objects.
 
 ## Examples
 
@@ -290,6 +288,6 @@ function QuickScene() {
 
 ## Notes
 
-- Scenes are stateless - activating them triggers actions but doesn't change the scene's state
+- Scenes are stateless. Activating one triggers its actions; the scene's own state doesn't change
 - `lastChanged` updates each time the scene is activated
-- Transition time is specified in seconds
+- Transition time is in seconds

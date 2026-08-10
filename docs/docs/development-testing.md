@@ -1,10 +1,10 @@
 # Development & Testing
 
-Building and testing Home Assistant interfaces requires tools that work when you don't have access to a real Home Assistant instance. hass-react provides mock mode and validation utilities to streamline development.
+You won't always have a real Home Assistant instance to point at while you build. Mock mode and the built-in development warnings cover that gap.
 
 ## Mock Mode
 
-Mock mode allows you to develop your interface without connecting to a real Home Assistant instance. Enable it by setting `mockMode: true` in your HAProvider configuration:
+Mock mode lets you develop without connecting to anything. Set `mockMode: true` on `HAProvider` and pass the entities you want:
 
 ```tsx
 import { HAProvider } from 'hass-react';
@@ -16,7 +16,7 @@ const mockEntities = {
     attributes: {
       friendly_name: 'Living Room Light',
       brightness: 180,
-      color_temp: 3000
+      color_temp_kelvin: 3000
     },
     last_changed: '2024-01-15T10:30:00Z',
     last_updated: '2024-01-15T10:30:00Z',
@@ -78,9 +78,24 @@ function MockLightDemo() {
 
 ## Mock Service Calls
 
-Service calls in mock mode simulate real behavior:
+Service calls in mock mode go through the same feature checks as real ones, so give the mock entity the `supported_features` bits it needs:
 
 ```tsx
+// Add to your mockData so the service calls are allowed
+const mockTodoData = {
+  'todo.shopping_list': {
+    entity_id: 'todo.shopping_list',
+    state: '2',
+    attributes: {
+      friendly_name: 'Shopping List',
+      supported_features: 7 // 1 = add items, 2 = delete, 4 = update
+    },
+    last_changed: '2024-01-15T10:00:00Z',
+    last_updated: '2024-01-15T10:00:00Z',
+    context: { id: '3', parent_id: null, user_id: null }
+  }
+};
+
 function MockTodoDemo() {
   const todos = useTodo('todo.shopping_list');
   
@@ -180,7 +195,7 @@ function App() {
 
 ## Validation and Development Warnings
 
-hass-react provides helpful validation during development:
+hass-react warns about common mistakes during development:
 
 ### Entity ID Format Validation
 
@@ -388,4 +403,4 @@ const config = {
 };
 ```
 
-Mock mode and validation utilities make it easy to develop and test Home Assistant interfaces without requiring a real instance, while ensuring your code works correctly when deployed to production.
+Build against mocks during development, then point at your real instance when you deploy. The code doesn't change.

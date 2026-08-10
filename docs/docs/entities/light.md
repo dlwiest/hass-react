@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Light
 
-Control lights with brightness, color, effects, and more.
+Control lights: on/off, brightness, color, and effects.
 
 ## Quick Example
 
@@ -41,7 +41,7 @@ import { Light } from 'hass-react'
 
 ### Render Props
 
-The Light component provides these props to your render function:
+Your render function gets these props:
 
 #### State Properties
 - **`isOn`** (`boolean`) - Whether the light is currently on
@@ -49,6 +49,8 @@ The Light component provides these props to your render function:
 - **`brightnessPercent`** (`number`) - Current brightness as percentage (0-100)
 - **`rgbColor`** (`[number, number, number]`) - RGB color values
 - **`colorTemp`** (`number | undefined`) - Current color temperature in kelvin from `color_temp_kelvin`
+- **`minColorTempKelvin`** (`number | undefined`) - Lowest color temperature the light supports, in kelvin
+- **`maxColorTempKelvin`** (`number | undefined`) - Highest color temperature the light supports, in kelvin
 - **`effect`** (`string`) - Current effect name
 
 #### Support Properties
@@ -89,11 +91,11 @@ function MyComponent() {
 }
 ```
 
-The `useLight` hook returns an object with all the same properties and methods as the component's render props.
+The hook returns the same properties and methods as the component's render props.
 
 ## List All Lights
 
-Use the `useLights` hook to retrieve all available light entities:
+`useLights` returns an array of every light entity Home Assistant knows about:
 
 ```tsx
 import { useLights } from 'hass-react'
@@ -113,8 +115,6 @@ function LightList() {
   )
 }
 ```
-
-The `useLights` hook fetches all light entities from Home Assistant and returns an array of light objects.
 
 ## Examples
 
@@ -180,27 +180,24 @@ The `useLights` hook fetches all light entities from Home Assistant and returns 
 
 ### Color Temperature in Kelvin
 
-Color temperature uses Home Assistant's `color_temp_kelvin` value.
-Use `min_color_temp_kelvin` and `max_color_temp_kelvin` from the entity attributes as the control bounds.
+Color temperature is kelvin-only, matching Home Assistant's `color_temp_kelvin`.
+The supported range is exposed as `minColorTempKelvin` and `maxColorTempKelvin`, so use those as your control bounds.
 
 ```tsx
 <Light entityId="light.tunable_white">
-  {({ colorTemp, setColorTemp, supportsColorTemp, attributes }) => {
-    const minKelvin = attributes.min_color_temp_kelvin
-    const maxKelvin = attributes.max_color_temp_kelvin
-
-    if (!supportsColorTemp || minKelvin === undefined || maxKelvin === undefined) {
+  {({ colorTemp, setColorTemp, supportsColorTemp, minColorTempKelvin, maxColorTempKelvin }) => {
+    if (!supportsColorTemp || minColorTempKelvin === undefined || maxColorTempKelvin === undefined) {
       return null
     }
 
     return (
       <label>
-        Color temperature: {colorTemp ?? minKelvin} K
+        Color temperature: {colorTemp ?? minColorTempKelvin} K
         <input
           type="range"
-          min={minKelvin}
-          max={maxKelvin}
-          value={colorTemp ?? minKelvin}
+          min={minColorTempKelvin}
+          max={maxColorTempKelvin}
+          value={colorTemp ?? minColorTempKelvin}
           onChange={(event) => setColorTemp(Number(event.target.value))}
         />
       </label>

@@ -4,7 +4,7 @@ sidebar_position: 2
 
 # Sensor
 
-Display sensor data like temperature, humidity, power usage, and other measurements.
+Read sensor values: temperature, humidity, power usage, anything Home Assistant reports as a sensor.
 
 ## Quick Example
 
@@ -41,7 +41,7 @@ import { Sensor } from 'hass-react'
 
 ### Render Props
 
-The Sensor component provides these props to your render function:
+The render function receives:
 
 #### State Properties
 - **`value`** (`string | number | null`) - Current sensor value
@@ -73,11 +73,11 @@ function MyComponent() {
 }
 ```
 
-The `useSensor` hook returns an object with all the same properties and methods as the component's render props.
+Everything from the component's render props is on this object.
 
 ## List All Sensors
 
-Use the `useSensors` hook to retrieve all available sensor entities:
+`useSensors` returns every sensor entity as an array:
 
 ```tsx
 import { useSensors } from 'hass-react'
@@ -97,8 +97,6 @@ function SensorList() {
   )
 }
 ```
-
-The `useSensors` hook fetches all sensor entities from Home Assistant and returns an array of sensor objects.
 
 ## Examples
 

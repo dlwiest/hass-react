@@ -1,13 +1,13 @@
 # Camera
 
-View camera images and streams with support for HLS, MJPEG, and WebRTC streaming.
+Show still images or live streams (HLS, MJPEG, or WebRTC) from your cameras.
 
 ## Quick Example
 
 ```tsx
 import { Camera, useCamera } from 'hass-react'
 
-// Streamlined approach with compound components
+// Compound components handle the image and stream player for you
 function CameraView() {
   const camera = useCamera('camera.front_door')
 
@@ -30,13 +30,13 @@ function CameraView() {
 }
 ```
 
-## Streamlined API
+## Compound Components
 
-The Camera module provides compound components for common use cases:
+The Camera module ships two small components for the common cases:
 
 ### Camera.Image
 
-Display a static camera image with automatic error handling.
+Displays a static camera image and handles load errors for you.
 
 ```tsx
 import { Camera } from 'hass-react'
@@ -179,7 +179,7 @@ The Camera component provides all the same properties and methods as the `useCam
 
 ## List All Cameras
 
-Use the `useCameras` hook to retrieve all available camera entities:
+The `useCameras` hook returns every camera entity Home Assistant knows about:
 
 ```tsx
 import { useCameras } from 'hass-react'
@@ -200,7 +200,7 @@ function CameraList() {
 }
 ```
 
-The `useCameras` hook fetches all camera entities from Home Assistant and returns an array of camera objects.
+Each item in the array is a raw entity object with `entity_id`, `state`, and `attributes`.
 
 ## Examples
 
@@ -478,7 +478,7 @@ function CameraPanel() {
 
 ### Advanced: Custom Stream Player
 
-For advanced use cases where you need full control over streaming:
+If you'd rather manage the video element yourself, get the URL with `getStreamUrl` and wire it up manually:
 
 ```tsx
 import { useCamera } from 'hass-react'
@@ -607,4 +607,4 @@ If images appear stale, use the refresh method:
 <button onClick={camera.refreshImage}>Refresh</button>
 ```
 
-The `imageUrl` includes automatic cache-busting to ensure fresh images.
+The `imageUrl` already includes a cache-busting parameter, so each refresh fetches a new image.

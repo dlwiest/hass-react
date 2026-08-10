@@ -4,7 +4,7 @@ sidebar_position: 5
 
 # Cover
 
-Control covers, blinds, garage doors, curtains, and shades.
+Open, close, and position covers: blinds, garage doors, curtains, shades.
 
 ## Quick Example
 
@@ -56,11 +56,15 @@ The Cover component provides these props to your render function:
 - **`isClosing`** (`boolean`) - Whether the cover is currently closing
 - **`position`** (`number | undefined`) - Current position (0-100, where 0 is closed and 100 is open)
 
+#### Support Properties
+- **`supportsSetPosition`** (`boolean`) - Cover supports position control
+- **`supportsStop`** (`boolean`) - Cover can be stopped mid-travel
+
 #### Control Methods
 - **`open()`** - Open the cover completely
 - **`close()`** - Close the cover completely
-- **`stop()`** - Stop the cover movement
-- **`setPosition(position: number)`** - Set cover to specific position (0-100)
+- **`stop()`** - Stop the cover movement. Throws `FeatureNotSupportedError` if the device can't stop, so check `supportsStop` first
+- **`setPosition(position: number)`** - Move the cover to a specific position (0-100). Throws `FeatureNotSupportedError` if the device doesn't support positioning, so check `supportsSetPosition` first
 
 #### Entity Properties
 - **`entityId`** (`string`) - The entity ID
@@ -84,11 +88,11 @@ function MyComponent() {
 }
 ```
 
-The `useCover` hook returns an object with all the same properties and methods as the component's render props.
+Everything the component passes to its render function is also on the object `useCover` returns.
 
 ## List All Covers
 
-Use the `useCovers` hook to retrieve all available cover entities:
+To list every cover entity, use the `useCovers` hook:
 
 ```tsx
 import { useCovers } from 'hass-react'
@@ -109,7 +113,7 @@ function CoverList() {
 }
 ```
 
-The `useCovers` hook fetches all cover entities from Home Assistant and returns an array of cover objects.
+It returns an array of cover entity objects.
 
 ## Examples
 

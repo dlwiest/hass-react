@@ -4,7 +4,7 @@ sidebar_position: 7
 
 # Todo
 
-Manage Home Assistant todo lists with add, remove, update, and toggle operations.
+Work with Home Assistant todo lists: add items, check them off, update them, remove them.
 
 ## Quick Example
 
@@ -76,7 +76,7 @@ The Todo component provides these props to your render function:
 - **`supportsAddItem`** (`boolean`) - List supports adding new items
 - **`supportsRemoveItem`** (`boolean`) - List supports removing items
 - **`supportsUpdateItem`** (`boolean`) - List supports updating item status
-- **`supportsClearCompleted`** (`boolean`) - List supports bulk clearing completed items
+- **`supportsClearCompleted`** (`boolean`) - List supports bulk clearing completed items. Home Assistant's `remove_completed_items` service requires the delete feature, so this is true exactly when `supportsRemoveItem` is
 
 #### Control Methods
 - **`addItem(summary: string)`** - Add a new item to the list
@@ -118,7 +118,7 @@ function MyComponent() {
 }
 ```
 
-The `useTodo` hook returns an object with all the same properties and methods as the component's render props.
+The `useTodo` hook returns the same properties and methods the component passes to its render function.
 
 ## List All Todo Lists
 
@@ -143,7 +143,7 @@ function TodoListList() {
 }
 ```
 
-The `useTodos` hook fetches all todo list entities from Home Assistant and returns an array of todo list objects.
+It returns plain entity objects, one per todo list in your Home Assistant instance.
 
 ## Examples
 

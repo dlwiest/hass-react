@@ -4,10 +4,10 @@ sidebar_position: 8
 
 # Calendar
 
-View and manage Home Assistant calendar events with read, create, update, and delete operations.
+Read events from Home Assistant calendars and create new ones. Update and delete are wired up too, but they're waiting on Home Assistant (see the warning below).
 
 :::warning Home Assistant Limitation
-As of November 2025, Home Assistant does **not yet provide** `calendar.delete_event` or `calendar.update_event` services. Only `calendar.create_event` and `calendar.get_events` are currently available. The `deleteEvent` and `updateEvent` methods are implemented according to the planned API structure and will work once Home Assistant adds these services. Until then, events can only be created and read, not modified or deleted through the API.
+Home Assistant only ships `calendar.create_event` and `calendar.get_events` right now (as of November 2025). There's no `calendar.delete_event` or `calendar.update_event` service yet. The `deleteEvent` and `updateEvent` methods here follow the planned API shape, so they'll start working as soon as Home Assistant adds the services. Until then, events can be created and read but not changed or removed.
 :::
 
 ## Quick Example
@@ -126,7 +126,7 @@ function MyComponent() {
 }
 ```
 
-The `useCalendar` hook returns an object with all the same properties and methods as the component's render props.
+The `useCalendar` hook returns the same properties and methods the component passes to its render function.
 
 ## List All Calendars
 
@@ -151,7 +151,7 @@ function CalendarList() {
 }
 ```
 
-The `useCalendars` hook fetches all calendar entities from Home Assistant and returns an array of calendar objects.
+It returns plain entity objects, one per calendar in your Home Assistant instance.
 
 ## Examples
 
@@ -610,7 +610,7 @@ function CalendarWidget({ entityId }) {
 - For all-day events, use date format (e.g., `2024-01-15`)
 - When using `datetime-local` inputs, append `:00` for seconds (e.g., `value + ':00'`)
 - The `getEvents` method requires `start` and `end` parameters in ISO 8601 format
-- Not all calendars support create, update, or delete operations - check the support properties
+- Not all calendars support create, update, or delete. Check the support properties first
 - Recurring events use the `rrule` property following RFC 5545 format
 - When updating or deleting recurring events, use `recurrenceRange` to specify the scope:
   - `'THIS'` - Only this occurrence

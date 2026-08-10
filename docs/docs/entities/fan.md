@@ -4,7 +4,7 @@ sidebar_position: 3
 
 # Fan
 
-Control fans with speed, presets, oscillation, and direction.
+Control fans: speed, preset modes, oscillation, direction.
 
 ## Quick Example
 
@@ -94,11 +94,11 @@ function MyComponent() {
 }
 ```
 
-The `useFan` hook returns an object with all the same properties and methods as the component's render props.
+The `useFan` hook returns the same properties and methods the component passes to its render function.
 
 ## List All Fans
 
-Use the `useFans` hook to retrieve all available fan entities:
+Need every fan at once? `useFans` returns them all:
 
 ```tsx
 import { useFans } from 'hass-react'
@@ -119,7 +119,7 @@ function FanList() {
 }
 ```
 
-The `useFans` hook fetches all fan entities from Home Assistant and returns an array of fan objects.
+It returns an array of fan entity objects.
 
 ## Examples
 
