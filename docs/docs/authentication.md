@@ -54,7 +54,7 @@ Applications that keep Home Assistant credentials on a server can supply an exte
 </HAProvider>
 ```
 
-This mode is intended for backend-for-frontend deployments such as kiosks and wall-mounted dashboards. The gateway maintains the authenticated Home Assistant connection while the browser receives sanitized events and sends allowlisted commands.
+This mode is intended for always-on deployments such as kiosks and wall-mounted dashboards. Because the browser never authenticates with Home Assistant, there is no browser session or token to expire — the dashboard does not land back on a login screen. The gateway maintains the authenticated Home Assistant connection while the browser receives sanitized events and sends allowlisted commands.
 
 See [External Transports](/docs/advanced/external-transports) for the transport contract and security requirements.
 

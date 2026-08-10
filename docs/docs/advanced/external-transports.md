@@ -16,6 +16,14 @@ browser using hass-react
 
 `hass-react` continues to manage entity subscriptions, hook state, service calls, connection status, and retries. Your transport adapts the application protocol to the small connection surface used by the library.
 
+## Why Use an External Transport
+
+Connecting the browser directly to Home Assistant means every viewer authenticates against it. An external transport removes that requirement, which matters in three common situations:
+
+- **Always-on dashboards that must never show a login screen.** Browser sessions depend on refresh tokens that Home Assistant can expire or invalidate, and browsers can evict stored credentials. A wall-mounted dashboard eventually lands back on a login prompt. With a transport, the gateway holds a long-lived token on the server and the browser never authenticates with Home Assistant, so there is nothing in the client to expire.
+- **Keeping credentials out of the browser.** Embedding a long-lived token in client code exposes it to every device that can load the page. The gateway keeps the credential server-side and exposes only what the application needs.
+- **Viewers who are not Home Assistant users.** Family members, guests, or kiosk hardware can use the application without individual Home Assistant accounts. Authorization becomes the application's decision instead of Home Assistant's.
+
 ## Provider Setup
 
 ```tsx
@@ -161,6 +169,12 @@ export function createGatewayTransport(): HATransport {
 ```
 
 Production transports should wait for an explicit ready signal before resolving `connect`, handle duplicate disconnect notifications, and validate response bodies.
+
+## Camera Media
+
+Still images and MJPEG streams from `useCamera` require the camera entity's access token plus direct HTTP access to Home Assistant's `/api/camera_proxy` endpoints, so they are disabled in external transport mode: `imageUrl` is `null` and `getStreamUrl({ type: 'mjpeg' })` resolves to `null`.
+
+HLS streaming can work through a transport: the `camera/stream` command is sent over the connection, and the returned playlist path is resolved against `url`. For HLS to play, the gateway must permit the `camera/stream` command and proxy the returned `/api/hls/...` playlist and segment paths under that same base URL.
 
 ## Security Boundary
 
