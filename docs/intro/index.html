@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="generator" content="Docusaurus v3.9.2">
 <title data-rh="true">Getting Started | hass-react</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://hass-react.com/img/social-card.png"><meta data-rh="true" name="twitter:image" content="https://hass-react.com/img/social-card.png"><meta data-rh="true" property="og:url" content="https://hass-react.com/docs/intro"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="Getting Started | hass-react"><meta data-rh="true" name="description" content="hass-react is a headless React library that provides hooks and components for building Home Assistant user interfaces without the hassle of WebSockets or service calls."><meta data-rh="true" property="og:description" content="hass-react is a headless React library that provides hooks and components for building Home Assistant user interfaces without the hassle of WebSockets or service calls."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://hass-react.com/docs/intro"><link data-rh="true" rel="alternate" href="https://hass-react.com/docs/intro" hreflang="en"><link data-rh="true" rel="alternate" href="https://hass-react.com/docs/intro" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"Getting Started","item":"https://hass-react.com/docs/intro"}]}</script><link rel="stylesheet" href="/assets/css/styles.498a7f75.css">
-<script src="/assets/js/runtime~main.e5edf925.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.3d9e7b30.js" defer="defer"></script>
 <script src="/assets/js/main.45f51e7e.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
@@ -29,11 +29,11 @@
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="performance-benefits">Performance Benefits<a href="#performance-benefits" class="hash-link" aria-label="Direct link to Performance Benefits" title="Direct link to Performance Benefits" translate="no">​</a></h2>
 <p>Subscriptions are managed for you:</p>
 <ul>
-<li class=""><strong>Shared subscriptions</strong> - Components watching the same entity share a single WebSocket subscription</li>
-<li class=""><strong>Automatic cleanup</strong> - Subscriptions are removed when a component unmounts</li>
-<li class=""><strong>Lazy loading</strong> - Only entities you actually render get subscribed</li>
+<li class=""><strong>One server subscription</strong> - The store opens a single <code>state_changed</code> subscription and fans events out locally, no matter how many components are mounted</li>
+<li class=""><strong>Targeted notifications</strong> - Each component registers for its own entity, so an event only wakes the components watching that entity</li>
+<li class=""><strong>Batched initial load</strong> - Components mounting together share one <code>get_states</code> snapshot instead of sending a request each</li>
+<li class=""><strong>Automatic cleanup</strong> - Registrations are removed when a component unmounts</li>
 </ul>
-<p>A dashboard with dozens of entity displays still runs over one WebSocket connection.</p>
 <h2 class="anchor anchorTargetStickyNavbar_Vzrq" id="next-steps">Next Steps<a href="#next-steps" class="hash-link" aria-label="Direct link to Next Steps" title="Direct link to Next Steps" translate="no">​</a></h2>
 <ul>
 <li class=""><strong><a class="" href="/docs/authentication">Authentication</a></strong> - Configure OAuth or token authentication</li>
