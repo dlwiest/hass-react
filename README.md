@@ -8,16 +8,12 @@ A React library for building custom Home Assistant interfaces. Headless componen
 
 ## Features
 
-- **Headless & Unstyled** - Use with any UI library or custom CSS
-- **Easy Real-time Updates** - One managed WebSocket connection shared by every hook and component
-- **Optimized Re-renders** - Components only re-render when their entity data changes
-- **Full TypeScript Support** - Complete type definitions for all supported entities
-- **OAuth & Token Auth** - Flexible authentication with connection state tracking
-- **External Transports** - Keep Home Assistant authentication server-side for kiosks and gateway-backed apps
-- **Error Handling** - Typed errors with optional automatic retry for network failures
-- **Mock Mode** - Develop and test without a live Home Assistant instance
-- **17 Entity Types** - Lights, climate, alarms, cameras, media players, sensors, and more
-- **Camera Streaming** - HLS and MJPEG stream support with static images
+- **17 Entity Types** - Lights, climate, cameras, media players, alarm panels, and twelve more, fully typed, with `supports*` capability flags and `callService` for everything else
+- **Hooks or Components** - Every entity works as a render-prop component or a hook; pick per component
+- **Headless & Unstyled** - No styles shipped; use any UI library or your own CSS
+- **Live State, No Plumbing** - One shared WebSocket keeps entities in sync, and components re-render only when their own entity changes; no Redux, no polling
+- **Auth Handled** - OAuth with automatic token refresh, long-lived tokens, or a server-side transport that keeps credentials out of the browser
+- **Mock Mode** - A simulated Home Assistant that answers service calls and state changes like the real one; develop and test without a live instance
 
 ## Installation
 

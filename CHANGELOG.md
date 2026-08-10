@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Mock mode now transitions media player state (play/pause/stop, volume, mute, source, shuffle, repeat, power) and legacy vacuum power (`turn_on`/`turn_off`); `media_player.toggle` correctly acts as a power toggle
+
 ## [1.0.0] - 2026-08-10
 
 ### Added

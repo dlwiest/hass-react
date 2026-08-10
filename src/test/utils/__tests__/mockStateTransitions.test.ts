@@ -438,5 +438,38 @@ describe('mockStateTransitions', () => {
         expect(result.attributes.brightness).toBe(0)
       })
     })
+
+    describe('media_player services', () => {
+      it('pauses and resumes playback', () => {
+        expect(mockServiceCall('media_player', 'media_pause', 'playing', {}, {}).state).toBe('paused')
+        expect(mockServiceCall('media_player', 'media_play', 'paused', {}, {}).state).toBe('playing')
+      })
+
+      it('sets volume without changing playback state', () => {
+        const result = mockServiceCall('media_player', 'volume_set', 'playing', {}, { volume_level: 0.7 })
+        expect(result.state).toBe('playing')
+        expect(result.attributes.volume_level).toBe(0.7)
+      })
+
+      it('treats toggle as a power toggle, not play/pause', () => {
+        // media_player.toggle switches power in Home Assistant
+        expect(mockServiceCall('media_player', 'toggle', 'playing', {}, {}).state).toBe('off')
+        expect(mockServiceCall('media_player', 'toggle', 'off', {}, {}).state).toBe('idle')
+        expect(mockServiceCall('media_player', 'media_play_pause', 'playing', {}, {}).state).toBe('paused')
+      })
+
+      it('selects sources and set shuffle/repeat as attributes', () => {
+        expect(mockServiceCall('media_player', 'select_source', 'playing', {}, { source: 'Spotify' }).attributes.source).toBe('Spotify')
+        expect(mockServiceCall('media_player', 'shuffle_set', 'playing', {}, { shuffle: true }).attributes.shuffle).toBe(true)
+        expect(mockServiceCall('media_player', 'repeat_set', 'playing', {}, { repeat: 'all' }).attributes.repeat).toBe('all')
+      })
+    })
+
+    describe('vacuum power services', () => {
+      it('turns legacy vacuums on and off', () => {
+        expect(mockServiceCall('vacuum', 'turn_on', 'off', {}, {}).state).toBe('idle')
+        expect(mockServiceCall('vacuum', 'turn_off', 'docked', {}, {}).state).toBe('off')
+      })
+    })
   })
 })

@@ -9,14 +9,14 @@ import styles from './index.module.css';
 
 const features = [
   {
-    title: 'Flexible API',
-    icon: '🪝',
-    description: 'Every entity works as a render-prop component or a hook. Pick per component. Both read from the same store.',
+    title: '17 Entity Types',
+    icon: '💡',
+    description: 'Lights, climate, cameras, media players, alarm panels, and twelve more, each fully typed. Capability flags like supportsBrightness keep your UI honest about what a device can do, and callService covers everything else Home Assistant exposes.',
   },
   {
-    title: 'Small and Fast',
-    icon: '⚡',
-    description: 'One WebSocket connection shared by every hook, and components only re-render when their own entity changes. Big dashboards stay fast.',
+    title: 'Hooks or Components',
+    icon: '🪝',
+    description: 'Every entity works as a render-prop component or a hook. Pick per component and mix freely. Both read from the same store.',
   },
   {
     title: 'Headless Design',
@@ -24,34 +24,34 @@ const features = [
     description: 'No styles shipped and no classes to override. Bring your own CSS, Tailwind, or component library.',
   },
   {
-    title: 'Real-time Updates',
-    icon: '🔌',
-    description: 'The provider owns the WebSocket. Entity states update the moment they change in Home Assistant, no polling.',
+    title: 'Live State, No Plumbing',
+    icon: '⚡',
+    description: 'One shared WebSocket keeps every entity in sync, and each component re-renders only when its own entity changes. No Redux, no context wiring, no polling.',
   },
   {
-    title: 'Built-in State Management',
-    icon: '📦',
-    description: 'No Redux and no context wiring. Entity state lives in the library and stays in sync with Home Assistant on its own.',
+    title: 'Auth Handled',
+    icon: '🔐',
+    description: 'OAuth with automatic token refresh, long-lived tokens, or your own server-side transport so credentials never reach the browser.',
   },
   {
-    title: 'Simple Service Calls',
-    icon: '🛠️',
-    description: 'Typed methods for common actions like turning on a light, plus callService for anything else Home Assistant exposes.',
+    title: 'Mock Mode',
+    icon: '🧪',
+    description: 'Flip one provider prop and develop against a built-in simulated Home Assistant that answers service calls and state updates like the real thing. Build, demo, and test without touching your house.',
   },
 ];
 
 const additionalFeatures = [
   {
-    title: 'Component Library',
-    description: 'Light, Switch, MediaPlayer, Climate, and more built-in components.',
+    title: 'Three Example Dashboards',
+    description: 'Complete vanilla CSS, shadcn/ui, and MUI builds in the repo.',
   },
   {
-    title: 'Fully Typed',
-    description: 'Complete type definitions for all entities and their properties.',
+    title: 'React 16.14+',
+    description: 'React is the only peer dependency, anything from 16.14 on.',
   },
   {
-    title: 'Auth Just Works',
-    description: 'OAuth 2.0 and long-lived token support with auto-detection.',
+    title: 'MIT Licensed',
+    description: 'Use it in anything, commercial or not.',
   },
 ];
 

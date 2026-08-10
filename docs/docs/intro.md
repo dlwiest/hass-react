@@ -80,11 +80,10 @@ Both do the same thing. Pick whichever pattern you prefer.
 
 Subscriptions are managed for you:
 
-- **Shared subscriptions** - Components watching the same entity share a single WebSocket subscription
-- **Automatic cleanup** - Subscriptions are removed when a component unmounts
-- **Lazy loading** - Only entities you actually render get subscribed
-
-A dashboard with dozens of entity displays still runs over one WebSocket connection.
+- **One server subscription** - The store opens a single `state_changed` subscription and fans events out locally, no matter how many components are mounted
+- **Targeted notifications** - Each component registers for its own entity, so an event only wakes the components watching that entity
+- **Batched initial load** - Components mounting together share one `get_states` snapshot instead of sending a request each
+- **Automatic cleanup** - Registrations are removed when a component unmounts
 
 ## Next Steps
 
