@@ -59,21 +59,40 @@ function HeroSection() {
   return (
     <section className={styles.hero}>
       <div className="container">
-        <div className={styles.heroContent}>
-          <Heading as="h1" className={styles.heroTitle}>
-            The React toolkit for Home Assistant UIs
-          </Heading>
-          <p className={styles.heroSubtitle}>
-            Headless React hooks and components for Home Assistant entities and services. 
-            Build custom dashboards without the hassle of raw WebSockets or HASS service calls.
-          </p>
-          <div className={styles.heroButtons}>
-            <Link className={styles.primaryButton} to="/docs/intro">
-              Get Started
-            </Link>
-            <Link className={styles.secondaryButton} to="/docs/entities/light">
-              Browse Entities
-            </Link>
+        <div className={styles.heroGrid}>
+          <div className={styles.heroContent}>
+            <Heading as="h1" className={styles.heroTitle}>
+              The React toolkit for Home Assistant UIs
+            </Heading>
+            <p className={styles.heroSubtitle}>
+              Headless React hooks and components for Home Assistant entities and services. 
+              Build custom dashboards without the hassle of raw WebSockets or HASS service calls.
+            </p>
+            <div className={styles.heroButtons}>
+              <Link className={styles.primaryButton} to="/docs/intro">
+                Get Started
+              </Link>
+              <Link className={styles.secondaryButton} to="/docs/entities/light">
+                Browse Entities
+              </Link>
+            </div>
+          </div>
+          <div className={styles.heroVisual} aria-hidden="true">
+            <div className={styles.visPanel}>
+              <div className={styles.visPanelTop}>
+                <div className={styles.visOrb} />
+                <div className={styles.visToggle}><span /></div>
+              </div>
+              <div className={styles.visRows}><span /><span /></div>
+              <div className={styles.visSlider}><span /></div>
+            </div>
+            <div className={styles.visGauge}>
+              <svg viewBox="0 0 72 72" className={styles.visGaugeSvg}>
+                <circle cx="36" cy="36" r="30" className={styles.visGaugeTrack} />
+                <circle cx="36" cy="36" r="30" className={styles.visGaugeArc} />
+              </svg>
+              <div className={styles.visGaugeRows}><span /><span /></div>
+            </div>
           </div>
         </div>
       </div>
@@ -85,12 +104,15 @@ function WhySection() {
   return (
     <section className={styles.whySection}>
       <div className="container">
-        <Heading as="h2" className={styles.sectionTitle}>
-          Build better interfaces
-        </Heading>
-        <p className={styles.sectionSubtitle}>
-          The WebSocket and state plumbing is handled, so you can spend your time on the UI
-        </p>
+        <div className={styles.sectionHead}>
+          <span className={styles.sectionMark} aria-hidden="true" />
+          <Heading as="h2" className={styles.sectionTitle}>
+            Build better interfaces
+          </Heading>
+          <p className={styles.sectionSubtitle}>
+            The WebSocket and state plumbing is handled, so you can spend your time on the UI
+          </p>
+        </div>
         <div className={styles.featuresGrid}>
           {features.map((feature, idx) => (
             <div key={idx} className={styles.featureCard}>
@@ -113,6 +135,9 @@ function CodeSection() {
       <div className="container">
         <div className={styles.codeLayout}>
           <div className={styles.codeExample}>
+            <div className={styles.windowBar} aria-hidden="true">
+              <span /><span /><span />
+            </div>
             <pre className={styles.codeBlock}>
               <code>{`// Render props
 <Light entityId="light.floor_lamp">
@@ -131,21 +156,27 @@ const light = useLight('light.floor_lamp')
             </pre>
           </div>
           <div className={styles.codeFeatures}>
-            <Heading as="h2" className={styles.sectionTitle}>
-              Choose your style
-            </Heading>
-            <p className={styles.sectionSubtitle}>
-              Use render props for full control or hooks for direct access
-            </p>
+            <div className={styles.sectionHead}>
+              <span className={styles.sectionMark} aria-hidden="true" />
+              <Heading as="h2" className={styles.sectionTitle}>
+                Choose your style
+              </Heading>
+              <p className={styles.sectionSubtitle}>
+                Use render props for full control or hooks for direct access
+              </p>
+            </div>
             <div className={styles.additionalFeatures}>
               {additionalFeatures.map((feature, idx) => (
                 <div key={idx} className={styles.additionalFeature}>
-                  <Heading as="h3" className={styles.additionalFeatureTitle}>
-                    {feature.title}
-                  </Heading>
-                  <p className={styles.additionalFeatureDescription}>
-                    {feature.description}
-                  </p>
+                  <span className={styles.featureTick} aria-hidden="true" />
+                  <div>
+                    <Heading as="h3" className={styles.additionalFeatureTitle}>
+                      {feature.title}
+                    </Heading>
+                    <p className={styles.additionalFeatureDescription}>
+                      {feature.description}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
