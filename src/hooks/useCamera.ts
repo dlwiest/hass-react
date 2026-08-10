@@ -40,20 +40,21 @@ export function useCamera(entityId: string): CameraState {
   const isIdle = state === 'idle'
   const motionDetectionEnabled = attributes.motion_detection ?? false
   const accessToken = attributes.access_token
+  const usesExternalTransport = Boolean(config.transport)
 
   // Generate camera image URL using the access token from entity attributes
   const imageUrl = useMemo(() => {
-    if (!accessToken || !config.url) {
+    if (usesExternalTransport || !accessToken || !config.url) {
       return null
     }
-    
+
     // Convert WebSocket URL to HTTP URL if needed
     const httpUrl = config.url.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://')
     const baseUrl = httpUrl.replace(/\/$/, '') // Remove trailing slash
     
     // Add cache-busting parameter to ensure fresh images
     return `${baseUrl}/api/camera_proxy/${normalizedEntityId}?token=${accessToken}&_cb=${imageRefreshKey}`
-  }, [accessToken, config.url, normalizedEntityId, imageRefreshKey])
+  }, [accessToken, config.url, normalizedEntityId, imageRefreshKey, usesExternalTransport])
 
   // Camera control actions
   const turnOn = useCallback(async () => {
@@ -148,7 +149,7 @@ export function useCamera(entityId: string): CameraState {
       
       if (streamType === 'mjpeg') {
         // Use camera proxy stream for MJPEG
-        if (!accessToken || !config.url) {
+        if (usesExternalTransport || !accessToken || !config.url) {
           return null
         }
         const baseUrl = config.url.replace(/^ws:\/\//, 'http://').replace(/^wss:\/\//, 'https://').replace(/\/$/, '')
@@ -174,7 +175,7 @@ export function useCamera(entityId: string): CameraState {
       }
       throw error
     }
-  }, [connection, features.stream, normalizedEntityId, accessToken, config.url])
+  }, [connection, features.stream, normalizedEntityId, accessToken, config.url, usesExternalTransport])
 
   // Start streaming
   const startStream = useCallback(async (options: StreamOptions = {}) => {

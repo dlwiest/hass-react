@@ -1,3 +1,5 @@
+import type { HATransport } from './transport'
+
 export interface HAConfig {
   url: string
   token?: string
@@ -6,6 +8,7 @@ export interface HAConfig {
   mockMode?: boolean
   mockData?: Record<string, EntityState>
   mockUser?: CurrentUser
+  transport?: HATransport
   options?: {
     reconnectInterval?: number
     reconnectAttempts?: number

@@ -1,5 +1,6 @@
 // Providers
 export { HAProvider, useHAConnection } from './providers/HAProvider'
+export type { HAProviderProps } from './providers/HAProvider'
 
 // Auth
 export { useAuth } from './hooks/useAuth'
@@ -112,6 +113,9 @@ export type {
   DateTimeAttributes,
   CurrentUser,
   HAConfig,
+  HAConnection,
+  HATransport,
+  HATransportHandlers,
   ConnectionStatus,
   BaseEntityHook
 } from './types'

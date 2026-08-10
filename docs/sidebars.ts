@@ -64,6 +64,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'advanced/multiple-entities',
         'advanced/custom-service-calls',
+        'advanced/external-transports',
       ],
     },
     'error-handling',

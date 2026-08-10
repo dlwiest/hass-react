@@ -44,6 +44,20 @@ Traditional token-based authentication for when you have a specific token:
 4. Click "Create Token"
 5. Give it a name and copy the generated token
 
+## Server-side Authentication
+
+Applications that keep Home Assistant credentials on a server can supply an external transport instead of authenticating the browser directly:
+
+```tsx
+<HAProvider url="https://dashboard.example.com" transport={gatewayTransport}>
+  <YourApp />
+</HAProvider>
+```
+
+This mode is intended for always-on deployments such as kiosks and wall-mounted dashboards. Because the browser never authenticates with Home Assistant, there is no browser session or token to expire — the dashboard does not land back on a login screen. The gateway maintains the authenticated Home Assistant connection while the browser receives sanitized events and sends allowlisted commands.
+
+See [External Transports](/docs/advanced/external-transports) for the transport contract and security requirements.
+
 ## Auto-detection (Default)
 
 By default, hass-react chooses the best authentication method automatically:

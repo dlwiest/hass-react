@@ -7,6 +7,12 @@ export type {
   BaseEntityHook,
 } from './core'
 
+export type {
+  HAConnection,
+  HATransport,
+  HATransportHandlers,
+} from './transport'
+
 // WebSocket types
 export type {
   StateChangedEvent,
