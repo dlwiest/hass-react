@@ -132,8 +132,8 @@ The `useCamera` hook returns an object with the following properties and methods
 - **`turnOff()`** - Turn camera off (if supported)
 - **`enableMotionDetection()`** - Enable motion detection
 - **`disableMotionDetection()`** - Disable motion detection
-- **`snapshot()`** - Take a snapshot
-- **`record(filename?: string, duration?: number)`** - Start recording
+- **`snapshot(filename: string)`** - Save a snapshot to a Home Assistant-accessible filename
+- **`record(filename: string, duration?: number)`** - Record to a Home Assistant-accessible filename
 - **`refreshImage()`** - Force refresh the camera image
 
 #### Streaming Methods
@@ -143,7 +143,16 @@ The `useCamera` hook returns an object with the following properties and methods
   - `options.type`: `'hls' | 'mjpeg' | 'webrtc'` (default: `'hls'`)
 - **`stopStream()`** - Stop streaming
 - **`retryStream()`** - Retry last failed stream
-- **`playStream(mediaPlayer?: string)`** - Play stream on a media player
+- **`playStream(mediaPlayer: string)`** - Play the stream on a media player entity
+
+`startStream` reports failures through `streamState.error` and resolves without throwing.
+Service methods return promises, so handle service-call failures explicitly:
+
+```tsx
+camera.snapshot('/config/www/snapshots/front-door.jpg').catch(console.error)
+camera.record('/config/www/recordings/front-door.mp4', 30).catch(console.error)
+camera.playStream('media_player.living_room').catch(console.error)
+```
 
 #### Entity Properties
 - **`entityId`** (`string`) - The entity ID
@@ -339,8 +348,15 @@ function CameraRecorder() {
   const camera = useCamera('camera.security')
 
   const startRecording = () => {
-    // Record for 30 seconds
-    camera.record(undefined, 30)
+    camera
+      .record('/config/www/recordings/security.mp4', 30)
+      .catch((error) => console.error('Recording failed:', error))
+  }
+
+  const takeSnapshot = () => {
+    camera
+      .snapshot('/config/www/snapshots/security.jpg')
+      .catch((error) => console.error('Snapshot failed:', error))
   }
 
   return (
@@ -357,7 +373,7 @@ function CameraRecorder() {
         </button>
       )}
 
-      <button onClick={camera.snapshot}>
+      <button onClick={takeSnapshot}>
         Take Snapshot
       </button>
     </div>
@@ -448,8 +464,8 @@ function CameraPanel() {
       {/* Action Buttons */}
       <div>
         <button onClick={camera.refreshImage}>Refresh Image</button>
-        <button onClick={camera.snapshot}>Take Snapshot</button>
-        <button onClick={() => camera.record(undefined, 60)}>
+        <button onClick={() => camera.snapshot('/config/www/snapshots/main.jpg').catch(console.error)}>Take Snapshot</button>
+        <button onClick={() => camera.record('/config/www/recordings/main.mp4', 60).catch(console.error)}>
           Record 60s
         </button>
       </div>

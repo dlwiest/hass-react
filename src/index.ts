@@ -8,6 +8,7 @@ export { useCurrentUser } from './hooks/useCurrentUser'
 
 // Base hooks
 export { useEntity } from './hooks/useEntity'
+export type { EntityHook } from './hooks/useEntity'
 export { useEntityGroup } from './hooks/useEntityGroup'
 export { useServiceCall } from './hooks/useServiceCall'
 
@@ -48,6 +49,22 @@ export { useCalendars } from './hooks/useCalendars'
 export { useTodos } from './hooks/useTodos'
 export { useNumbers } from './hooks/useNumbers'
 export { useAlarmControlPanels } from './hooks/useAlarmControlPanels'
+export type { LightEntity } from './hooks/useLights'
+export type { SwitchEntity } from './hooks/useSwitches'
+export type { SensorEntity } from './hooks/useSensors'
+export type { BinarySensorEntity } from './hooks/useBinarySensors'
+export type { FanEntity } from './hooks/useFans'
+export type { LockEntity } from './hooks/useLocks'
+export type { CoverEntity } from './hooks/useCovers'
+export type { MediaPlayerEntity } from './hooks/useMediaPlayers'
+export type { CameraEntity } from './hooks/useCameras'
+export type { ClimateEntity } from './hooks/useClimates'
+export type { VacuumEntity } from './hooks/useVacuums'
+export type { CalendarEntity } from './hooks/useCalendars'
+export type { TodoEntity } from './hooks/useTodos'
+export type { NumberEntity } from './hooks/useNumbers'
+export type { SceneEntity } from './hooks/useScenes'
+export type { AlarmControlPanelEntity } from './hooks/useAlarmControlPanels'
 
 // Headless components
 export { Light } from './components/Light'
@@ -116,6 +133,8 @@ export type {
   HAConnection,
   HATransport,
   HATransportHandlers,
+  StateChangedEvent,
+  CameraStreamMethods,
   ConnectionStatus,
   BaseEntityHook
 } from './types'
@@ -123,6 +142,7 @@ export type {
   AuthState,
   AuthError,
   AuthConfig,
+  AuthMode,
   StoredAuthData
 } from './types/auth'
 export type { SwitchState } from './hooks/useSwitch'
@@ -130,7 +150,7 @@ export type { CoverState } from './hooks/useCover'
 export type { MediaPlayerState, MediaPlayerAttributes, MediaPlayerCapabilities, CameraState, CameraAttributes, CameraCapabilities, StreamState, StreamOptions, StreamType } from './types'
 
 // Constants
-export { LightFeatures, FanFeatures, ClimateFeatures, LockFeatures, TodoFeatures, MediaPlayerFeatures, CameraFeatures, VacuumFeatures, CalendarFeatures, AlarmControlPanelFeatures } from './types'
+export { LightFeatures, FanFeatures, ClimateFeatures, LockFeatures, TodoFeatures, CoverFeatures, MediaPlayerFeatures, CameraFeatures, VacuumFeatures, CalendarFeatures, AlarmControlPanelFeatures } from './types'
 
 // Error handling
 export type { ErrorRetryAction } from './utils/errors'
@@ -149,4 +169,4 @@ export {
 } from './utils/errors'
 
 // Store (for advanced usage)
-export { useStore, selectEntity } from './services/entityStore'
+export { useStore, selectEntity, subscribeAllStateChanges } from './services/entityStore'

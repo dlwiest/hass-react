@@ -200,24 +200,27 @@ Configure how service calls retry on failure:
 
 ## useAuth Hook
 
-For custom authentication flows, use the `useAuth` hook directly:
+Use the `useAuth` hook to render custom authentication state inside `HAProvider`:
 
 ```tsx
 import { useAuth } from 'hass-react'
 
-function CustomAuth() {
-  const { authenticated, login, logout, loading, error } = useAuth(
+function AuthStatus() {
+  const { isAuthenticated, isLoading, logout, error } = useAuth(
     'http://homeassistant.local:8123',
     'oauth'
   )
 
-  if (loading) return <div>Authenticating...</div>
+  if (isLoading) return <div>Authenticating...</div>
   if (error) return <div>Error: {error.message}</div>
-  if (!authenticated) return <button onClick={login}>Login</button>
-  
+  if (!isAuthenticated) return <div>Redirecting to Home Assistant...</div>
+
   return <button onClick={logout}>Logout</button>
 }
 ```
+
+`HAProvider` drives the OAuth authorization redirect when no valid stored session exists.
+The `useAuth` hook reports authentication state for custom UI; a login button is not required to start the OAuth flow.
 
 ## Current User Information
 

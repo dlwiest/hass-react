@@ -48,12 +48,12 @@ The Light component provides these props to your render function:
 - **`brightness`** (`number`) - Current brightness (0-255)
 - **`brightnessPercent`** (`number`) - Current brightness as percentage (0-100)
 - **`rgbColor`** (`[number, number, number]`) - RGB color values
-- **`colorTemp`** (`number`) - Color temperature in mireds
+- **`colorTemp`** (`number | undefined`) - Current color temperature in kelvin from `color_temp_kelvin`
 - **`effect`** (`string`) - Current effect name
 
 #### Support Properties
 - **`supportsBrightness`** (`boolean`) - Light supports brightness control
-- **`supportsRgb`** (`boolean`) - Light supports RGB color
+- **`supportsRgb`** (`boolean`) - Light supports RGB, RGBW, or RGBWW color control
 - **`supportsColorTemp`** (`boolean`) - Light supports color temperature
 - **`supportsEffects`** (`boolean`) - Light supports effects
 - **`availableEffects`** (`string[]`) - List of available effect names
@@ -64,7 +64,7 @@ The Light component provides these props to your render function:
 - **`turnOff()`** - Turn the light off
 - **`setBrightness(value: number)`** - Set brightness (0-255)
 - **`setRgbColor(rgb: [number, number, number])`** - Set RGB color
-- **`setColorTemp(temp: number)`** - Set color temperature
+- **`setColorTemp(kelvin: number)`** - Set color temperature in kelvin
 - **`setEffect(effect: string)`** - Set light effect
 
 #### Entity Properties
@@ -175,6 +175,37 @@ The `useLights` hook fetches all light entities from Home Assistant and returns 
       )}
     </div>
   )}
+</Light>
+```
+
+### Color Temperature in Kelvin
+
+Color temperature uses Home Assistant's `color_temp_kelvin` value.
+Use `min_color_temp_kelvin` and `max_color_temp_kelvin` from the entity attributes as the control bounds.
+
+```tsx
+<Light entityId="light.tunable_white">
+  {({ colorTemp, setColorTemp, supportsColorTemp, attributes }) => {
+    const minKelvin = attributes.min_color_temp_kelvin
+    const maxKelvin = attributes.max_color_temp_kelvin
+
+    if (!supportsColorTemp || minKelvin === undefined || maxKelvin === undefined) {
+      return null
+    }
+
+    return (
+      <label>
+        Color temperature: {colorTemp ?? minKelvin} K
+        <input
+          type="range"
+          min={minKelvin}
+          max={maxKelvin}
+          value={colorTemp ?? minKelvin}
+          onChange={(event) => setColorTemp(Number(event.target.value))}
+        />
+      </label>
+    )
+  }}
 </Light>
 ```
 

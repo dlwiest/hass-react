@@ -23,9 +23,7 @@ jobs:
         node-version: ${{ matrix.node-version }}
     
     - name: Install dependencies
-      run: |
-        rm -rf node_modules package-lock.json
-        npm install
+      run: npm ci --ignore-scripts
     
     - name: Run linter
       run: npm run lint

@@ -89,6 +89,7 @@ Send a Home Assistant WebSocket-shaped command through the gateway and resolve w
 
 - `get_states`
 - `call_service`
+- `auth/current_user`
 - Service calls with `return_response: true`, including `todo.get_items`
 
 Reject unsupported commands and gateway errors rather than returning fabricated responses.

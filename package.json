@@ -1,17 +1,18 @@
 {
   "name": "hass-react",
-  "version": "0.15.8",
+  "version": "0.16.0",
   "description": "Headless React components and hooks for building Home Assistant UI without the hassle",
   "type": "module",
-  "main": "./dist/index.cjs.js",
+  "main": "./dist/index.cjs",
   "module": "./dist/index.es.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
+      "types": "./dist/index.d.ts",
       "import": "./dist/index.es.js",
-      "require": "./dist/index.cjs.js",
-      "types": "./dist/index.d.ts"
-    }
+      "require": "./dist/index.cjs"
+    },
+    "./package.json": "./package.json"
   },
   "sideEffects": false,
   "scripts": {
@@ -23,8 +24,7 @@
     "test": "vitest"
   },
   "peerDependencies": {
-    "react": ">=16.8.0",
-    "react-dom": ">=16.8.0"
+    "react": ">=16.14.0"
   },
   "dependencies": {
     "home-assistant-js-websocket": "^9.0.0",
