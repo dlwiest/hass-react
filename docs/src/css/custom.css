@@ -222,11 +222,13 @@ code {
   background: rgba(56, 189, 248, 0.09);
 }
 
-/* Code inside pre blocks is block-level, not inline */
+/* Code inside pre blocks is block-level, not inline. Docusaurus's own rules
+   live in a cascade layer, so this unlayered reset would otherwise strip the
+   block padding from .codeBlockLines; re-apply it explicitly. */
 pre code {
   border: none;
-  padding: 0;
   background: transparent;
+  padding: var(--ifm-pre-padding);
 }
 
 /* Code blocks */
@@ -451,7 +453,14 @@ button:focus-visible,
 
 .menu__link--active {
   font-weight: 600;
-  box-shadow: inset 2px 0 0 var(--hr-brand);
+}
+
+/* Active page marker: a straight bar against a squared left edge. An inset
+   shadow on the fully rounded pill curls around the corners and reads as a
+   bracket. Ancestor categories get weight/color only. */
+.menu__link--active:not(.menu__link--sublist) {
+  border-radius: 0 8px 8px 0;
+  box-shadow: inset 3px 0 0 var(--hr-brand);
 }
 
 .theme-doc-sidebar-container a,
