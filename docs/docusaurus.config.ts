@@ -51,11 +51,18 @@ const config: Config = {
   ],
 
   themeConfig: {
+    image: 'img/social-card.png',
     colorMode: {
       respectPrefersColorScheme: true,
     },
     navbar: {
       title: 'hass-react',
+      logo: {
+        alt: 'hass-react',
+        src: 'img/logo.svg',
+        width: 30,
+        height: 30,
+      },
       hideOnScroll: false,
       items: [
         {
@@ -113,8 +120,8 @@ const config: Config = {
       copyright: `<div class="footer__bottom"><span>© ${new Date().getFullYear()} hass-react. Open source and free to use.</span><div class="footer__bottom-links"><a href="https://github.com/dlwiest/hass-react" target="_blank" rel="noopener noreferrer">GitHub</a><a href="https://dlwiest.com" target="_blank" rel="noopener noreferrer">Developer Site</a></div></div>`,
     },
     prism: {
-      theme: prismThemes.github,
-      darkTheme: prismThemes.dracula,
+      theme: prismThemes.oneLight,
+      darkTheme: prismThemes.nightOwl,
     },
   } satisfies Preset.ThemeConfig,
 };

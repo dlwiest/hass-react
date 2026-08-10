@@ -1,170 +1,424 @@
 /**
  * CSS files with the .module.css suffix will be treated as CSS modules
  * and scoped locally.
+ *
+ * hass-react landing page — editorial hero with a live-looking entity
+ * panel motif, asymmetric feature grid, editor-window code panel, and
+ * an always-dark "night panel" CTA band.
  */
 
-/* Hero Section */
+/* ---------------------------------------------------------------- */
+/* Hero                                                              */
+/* ---------------------------------------------------------------- */
 .hero {
-  padding: 4rem 0 4rem;
-  text-align: center;
-  background: linear-gradient(to bottom, #ecfdf5 0%, #ffffff 100%);
-  margin-top: calc(-1 * var(--ifm-navbar-height));
-  padding-top: calc(4rem + var(--ifm-navbar-height));
+  position: relative;
+  overflow: hidden;
+  padding: 5rem 0 4.5rem;
+  background-image:
+    radial-gradient(52rem 30rem at 82% -8%, rgba(14, 165, 233, 0.12), transparent 60%),
+    radial-gradient(34rem 22rem at 6% 12%, rgba(255, 152, 0, 0.08), transparent 60%),
+    radial-gradient(circle, rgba(3, 105, 161, 0.09) 1px, transparent 1.5px);
+  background-size: auto, auto, 24px 24px;
 }
 
 [data-theme='dark'] .hero {
-  background: linear-gradient(135deg, var(--landing-gradient-start) 0%, var(--landing-gradient-end) 100%);
+  background-image:
+    radial-gradient(52rem 30rem at 82% -8%, rgba(56, 189, 248, 0.16), transparent 60%),
+    radial-gradient(34rem 22rem at 6% 12%, rgba(255, 176, 32, 0.1), transparent 60%),
+    radial-gradient(circle, rgba(125, 211, 252, 0.1) 1px, transparent 1.5px);
+  background-size: auto, auto, 24px 24px;
+}
+
+.heroGrid {
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  gap: 3.5rem;
+  align-items: center;
 }
 
 .heroContent {
-  max-width: 800px;
-  margin: 0 auto;
+  max-width: 36rem;
 }
 
 .heroTitle {
-  font-size: 3.5rem;
+  font-size: clamp(2.5rem, 4.6vw, 3.75rem);
   font-weight: 800;
-  margin-bottom: 1.5rem;
-  line-height: 1.1;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+  margin-bottom: 1.4rem;
+  color: var(--hr-ink);
+  text-wrap: balance;
 }
 
 .heroSubtitle {
-  font-size: 1.25rem;
-  color: var(--landing-text-muted);
-  margin-bottom: 2.5rem;
-  line-height: 1.6;
+  font-size: 1.13rem;
+  color: var(--hr-muted);
+  margin-bottom: 2.25rem;
+  line-height: 1.65;
 }
 
 .heroButtons {
   display: flex;
-  gap: 1rem;
+  gap: 0.9rem;
   align-items: center;
-  justify-content: center;
   flex-wrap: wrap;
 }
 
-/* Button Styles */
+/* ---------------------------------------------------------------- */
+/* Buttons                                                           */
+/* ---------------------------------------------------------------- */
 .primaryButton {
-  background: var(--landing-button-primary);
-  color: white;
-  padding: 0.5rem 1.25rem;
-  border-radius: 8px;
+  background: #0369a1;
+  color: #fff;
+  padding: 0.72rem 1.45rem;
+  border-radius: 10px;
   text-decoration: none;
   font-weight: 600;
-  transition: all 0.2s ease;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  box-shadow: 0 8px 20px -8px rgba(3, 105, 161, 0.5);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   display: inline-flex;
   align-items: center;
 }
 
 .primaryButton:hover {
-  background: var(--ifm-color-primary-dark);
-  color: white;
+  background: #075985;
+  color: #fff;
   text-decoration: none;
-  transform: translateY(-1px);
-  box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 14px 28px -10px rgba(3, 105, 161, 0.55);
 }
 
 .secondaryButton {
   background: transparent;
-  color: var(--landing-button-secondary);
-  padding: calc(0.5rem - 2px) calc(1.25rem - 2px);
-  border: 2px solid var(--landing-card-border);
-  border-radius: 8px;
+  color: var(--hr-ink);
+  padding: 0.72rem 1.45rem;
+  border: 1.5px solid var(--ifm-color-emphasis-400);
+  border-radius: 10px;
   text-decoration: none;
   font-weight: 600;
-  transition: all 0.2s ease;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+  transition: border-color 0.2s ease, color 0.2s ease, background 0.2s ease, transform 0.2s ease;
   display: inline-flex;
   align-items: center;
 }
 
 .secondaryButton:hover {
-  background: var(--ifm-color-primary-dark);
-  border-color: var(--ifm-color-primary-dark);
-  color: white;
+  border-color: var(--hr-brand);
+  color: var(--ifm-color-primary);
+  background: var(--hr-brand-soft);
   text-decoration: none;
-  transform: translateY(-1px);
-  box-shadow: 0 10px 25px -5px rgba(6, 182, 212, 0.4);
+  transform: translateY(-2px);
 }
 
-/* Why Section */
-.whySection {
-  padding: 5rem 0;
-  text-align: left;
+/* ---------------------------------------------------------------- */
+/* Hero visual — entity panel motif (purely decorative)              */
+/* ---------------------------------------------------------------- */
+.heroVisual {
+  position: relative;
+  min-height: 22rem;
+}
+
+.visPanel {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: min(19.5rem, 88%);
+  background: var(--hr-surface);
+  border: 1px solid var(--hr-border);
+  border-radius: 20px;
+  box-shadow: var(--hr-shadow-lift);
+  padding: 1.4rem 1.5rem 1.6rem;
+  animation: visFloat 7s ease-in-out infinite alternate;
+}
+
+.visPanelTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.35rem;
+}
+
+.visOrb {
+  width: 54px;
+  height: 54px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #ffe9b0, #ffb020 62%, #f08c00);
+  box-shadow:
+    0 0 24px rgba(255, 176, 32, 0.55),
+    0 0 64px rgba(255, 176, 32, 0.3);
+}
+
+.visToggle {
+  width: 48px;
+  height: 27px;
+  border-radius: 999px;
+  background: var(--hr-brand);
+  display: flex;
+  align-items: center;
+  padding: 3px;
+  box-shadow: inset 0 1px 3px rgba(8, 47, 73, 0.35);
+}
+
+.visToggle span {
+  width: 21px;
+  height: 21px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translateX(21px);
+  box-shadow: 0 1px 3px rgba(8, 47, 73, 0.4);
+}
+
+.visRows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-bottom: 1.5rem;
+}
+
+.visRows span {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--ifm-color-emphasis-200);
+}
+
+.visRows span:first-child {
+  width: 68%;
+}
+
+.visRows span:last-child {
+  width: 44%;
+}
+
+.visSlider {
+  position: relative;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--ifm-color-emphasis-200);
+}
+
+.visSlider > span {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  width: 58%;
+  border-radius: 4px;
+  background: linear-gradient(90deg, var(--hr-brand), #7dd3fc);
+}
+
+.visSlider > span::after {
+  content: '';
+  position: absolute;
+  right: -9px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--hr-surface);
+  border: 3px solid var(--hr-brand);
+  box-shadow: 0 1px 4px rgba(8, 47, 73, 0.3);
+}
+
+.visGauge {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 11rem;
+  background: var(--hr-surface);
+  border: 1px solid var(--hr-border);
+  border-radius: 16px;
+  box-shadow: var(--hr-shadow);
+  padding: 1.1rem 1.1rem 1.2rem;
+  animation: visFloat 9s ease-in-out infinite alternate-reverse;
+}
+
+.visGaugeSvg {
+  display: block;
+  width: 76px;
+  height: 76px;
+  margin: 0 auto 0.9rem;
+  transform: rotate(-90deg);
+}
+
+.visGaugeTrack {
+  fill: none;
+  stroke: var(--ifm-color-emphasis-200);
+  stroke-width: 7;
+}
+
+.visGaugeArc {
+  fill: none;
+  stroke: var(--hr-brand);
+  stroke-width: 7;
+  stroke-linecap: round;
+  stroke-dasharray: 118 189;
+}
+
+.visGaugeRows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.visGaugeRows span {
+  display: block;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--ifm-color-emphasis-200);
+}
+
+.visGaugeRows span:first-child {
+  width: 55%;
+  margin: 0 auto;
+}
+
+.visGaugeRows span:last-child {
+  width: 38%;
+  margin: 0 auto;
+}
+
+@keyframes visFloat {
+  from { transform: translateY(0); }
+  to { transform: translateY(-9px); }
+}
+
+/* ---------------------------------------------------------------- */
+/* Sections shared                                                   */
+/* ---------------------------------------------------------------- */
+.sectionHead {
+  max-width: 42rem;
+  margin-bottom: 3rem;
+}
+
+.sectionMark {
+  display: block;
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--hr-brand), var(--hr-accent));
+  margin-bottom: 1.15rem;
 }
 
 .sectionTitle {
-  font-size: 2.5rem;
+  font-size: 2.05rem;
   font-weight: 700;
-  margin-bottom: 1rem;
-  color: var(--ifm-heading-color);
-}
-
-[data-theme='dark'] .sectionTitle {
-  color: white;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.85rem;
+  color: var(--hr-ink);
 }
 
 .sectionSubtitle {
-  font-size: 1.125rem;
-  color: var(--landing-text-muted);
-  margin-bottom: 3rem;
+  font-size: 1.05rem;
+  color: var(--hr-muted);
+  margin-bottom: 0;
+  line-height: 1.6;
+}
+
+/* ---------------------------------------------------------------- */
+/* Why section — asymmetric feature grid                             */
+/* ---------------------------------------------------------------- */
+.whySection {
+  padding: 4.5rem 0 5rem;
 }
 
 .featuresGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 2rem;
-  margin-top: 3rem;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1.25rem;
 }
 
 .featureCard {
-  background: var(--ifm-background-surface-color);
-  border: 2px solid var(--landing-card-border);
-  border-radius: 12px;
-  padding: 2rem;
-  transition: all 0.3s ease;
-  text-align: left;
+  grid-column: span 4;
+  background: var(--hr-surface);
+  border: 1px solid var(--hr-border);
+  border-radius: 16px;
+  padding: 1.6rem;
+  box-shadow: var(--hr-shadow);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
+}
+
+.featureCard:nth-child(1) {
+  grid-column: span 7;
+}
+
+.featureCard:nth-child(2) {
+  grid-column: span 5;
+}
+
+.featureCard:nth-child(6) {
+  grid-column: span 12;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 1.4rem;
+  align-items: center;
+}
+
+.featureCard:nth-child(6) .featureIcon {
+  grid-row: 1 / 3;
 }
 
 .featureCard:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 20px 40px -10px rgba(51, 65, 85, 0.15);
-  border-color: var(--ifm-color-primary);
-}
-
-[data-theme='dark'] .featureCard:hover {
-  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.3);
+  transform: translateY(-3px);
+  border-color: var(--hr-brand);
+  box-shadow: var(--hr-shadow-lift);
 }
 
 .featureIcon {
-  font-size: 2.5rem;
-  margin-bottom: 1rem;
+  width: 46px;
+  height: 46px;
+  border-radius: 13px;
+  background: var(--hr-brand-soft);
+  display: grid;
+  place-items: center;
+  font-size: 22px;
+  margin-bottom: 1.1rem;
+  flex-shrink: 0;
+}
+
+.featureCard:nth-child(even) .featureIcon {
+  background: var(--hr-accent-soft);
+}
+
+.featureCard:nth-child(6) .featureIcon {
+  margin-bottom: 0;
+}
+
+.featureCard:nth-child(6) .featureTitle {
+  margin-bottom: 0.3rem;
 }
 
 .featureTitle {
-  font-size: 1.25rem;
+  font-size: 1.06rem;
   font-weight: 600;
-  margin-bottom: 0.75rem;
-  color: var(--ifm-heading-color);
+  letter-spacing: -0.015em;
+  margin-bottom: 0.45rem;
+  color: var(--hr-ink);
 }
 
 .featureDescription {
-  color: var(--landing-text-muted);
+  color: var(--hr-muted);
+  font-size: 0.93rem;
   line-height: 1.6;
   margin: 0;
 }
 
-/* Code Section */
+/* ---------------------------------------------------------------- */
+/* Code section — editor window + checklist                          */
+/* ---------------------------------------------------------------- */
 .codeSection {
-  padding: 5rem 0;
-  background: #f0fdfa;
-  border-top: 1px solid var(--ifm-color-emphasis-200);
-  border-bottom: 1px solid var(--ifm-color-emphasis-200);
+  padding: 5.5rem 0;
+  background: #eef4fa;
+  border-top: 1px solid var(--hr-border);
+  border-bottom: 1px solid var(--hr-border);
 }
 
 [data-theme='dark'] .codeSection {
-  background: var(--landing-gradient-start);
-  border-top: 1px solid rgba(20, 184, 166, 0.15);
-  border-bottom: 1px solid rgba(20, 184, 166, 0.15);
+  background: #0c1a2e;
 }
 
 .codeLayout {
@@ -175,130 +429,261 @@
 }
 
 .codeExample {
-  background: #1e293b;
-  border-radius: 12px;
+  background: #0d1b2e;
+  border: 1px solid #1d3350;
+  border-radius: 14px;
   overflow: hidden;
-  border: 2px solid var(--landing-card-border);
+  box-shadow: 0 24px 48px -20px rgba(8, 47, 73, 0.5);
 }
+
+.windowBar {
+  display: flex;
+  gap: 7px;
+  padding: 13px 16px;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.12);
+  background: rgba(125, 211, 252, 0.04);
+}
+
+.windowBar span {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+}
+
+.windowBar span:nth-child(1) { background: #f87171; }
+.windowBar span:nth-child(2) { background: #fbbf24; }
+.windowBar span:nth-child(3) { background: #34d399; }
 
 .codeBlock {
-  background: #1e293b;
-  color: #e2e8f0;
-  padding: 2rem;
+  background: #0d1b2e;
+  color: #c9dcf2;
+  padding: 1.5rem 1.6rem;
   margin: 0;
-  font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
-  font-size: 0.875rem;
-  line-height: 1.6;
+  font-family: var(--ifm-font-family-monospace);
+  font-size: 0.85rem;
+  line-height: 1.7;
   overflow-x: auto;
+  border: none;
+  box-shadow: none;
 }
 
-.codeFeatures {
-  text-align: left;
+/* The panel uses a bare <pre><code>; Infima's inline-code background would
+   otherwise paint a highlight behind every rendered line box. */
+.codeBlock code {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: inherit;
 }
 
 .additionalFeatures {
   display: flex;
   flex-direction: column;
-  gap: 1.5rem;
-  margin-top: 2rem;
+  gap: 1.7rem;
+  margin-top: 2.5rem;
 }
 
 .additionalFeature {
-  background: var(--ifm-background-surface-color);
-  border: 2px solid var(--landing-card-border);
-  border-radius: 8px;
-  padding: 1.5rem;
+  display: flex;
+  gap: 0.95rem;
+  align-items: flex-start;
+}
+
+.featureTick {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--hr-brand-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.featureTick::after {
+  content: '';
+  width: 9px;
+  height: 5px;
+  border-left: 2px solid var(--hr-brand);
+  border-bottom: 2px solid var(--hr-brand);
+  transform: rotate(-45deg) translateY(-1px);
 }
 
 .additionalFeatureTitle {
-  font-size: 1.125rem;
+  font-size: 1rem;
   font-weight: 600;
-  margin-bottom: 0.5rem;
-  color: var(--ifm-heading-color);
+  letter-spacing: -0.015em;
+  margin-bottom: 0.3rem;
+  color: var(--hr-ink);
 }
 
 .additionalFeatureDescription {
-  color: var(--landing-text-muted);
+  color: var(--hr-muted);
   margin: 0;
-  line-height: 1.5;
+  font-size: 0.93rem;
+  line-height: 1.55;
 }
 
-/* CTA Section */
+/* ---------------------------------------------------------------- */
+/* CTA — night panel band (always dark, both color modes)            */
+/* ---------------------------------------------------------------- */
 .ctaSection {
-  padding: 5rem 0;
+  position: relative;
+  overflow: hidden;
+  padding: 6rem 0;
   text-align: center;
-  background: var(--ifm-background-surface-color);
+  background:
+    radial-gradient(40rem 22rem at 88% 118%, rgba(255, 176, 32, 0.16), transparent 62%),
+    radial-gradient(46rem 26rem at 8% -30%, rgba(56, 189, 248, 0.2), transparent 62%),
+    #0b1526;
 }
 
 .ctaContent {
-  max-width: 600px;
+  max-width: 620px;
   margin: 0 auto;
 }
 
 .ctaTitle {
-  font-size: 2.5rem;
-  font-weight: 700;
+  font-size: 2.35rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   margin-bottom: 1rem;
-  color: var(--ifm-heading-color);
+  color: #f0f7ff;
 }
 
 .ctaSubtitle {
-  font-size: 1.125rem;
-  color: var(--landing-text-muted);
+  font-size: 1.08rem;
+  color: #a2bbd8;
   margin-bottom: 2.5rem;
+  line-height: 1.6;
 }
 
 .ctaButtons {
   display: flex;
-  gap: 1rem;
+  gap: 0.9rem;
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
 }
 
-/* Responsive Design */
+.ctaSection .primaryButton {
+  background: #38bdf8;
+  color: #082f49;
+  box-shadow: 0 10px 28px -8px rgba(56, 189, 248, 0.5);
+}
+
+.ctaSection .primaryButton:hover {
+  background: #7dd3fc;
+  color: #082f49;
+  box-shadow: 0 16px 36px -10px rgba(56, 189, 248, 0.55);
+}
+
+.ctaSection .secondaryButton {
+  color: #c6d7ea;
+  border-color: rgba(198, 215, 234, 0.35);
+}
+
+.ctaSection .secondaryButton:hover {
+  border-color: #7dd3fc;
+  color: #7dd3fc;
+  background: rgba(56, 189, 248, 0.08);
+}
+
+/* ---------------------------------------------------------------- */
+/* Responsive                                                        */
+/* ---------------------------------------------------------------- */
 @media screen and (max-width: 996px) {
   .hero {
-    padding: 4rem 0 3rem;
+    padding: 4rem 0 4.5rem;
   }
-  
-  .heroTitle {
-    font-size: 2.5rem;
+
+  .heroGrid {
+    grid-template-columns: 1fr;
+    gap: 3rem;
   }
-  
-  .heroSubtitle {
-    font-size: 1.125rem;
+
+  .heroContent {
+    max-width: 100%;
   }
-  
+
+  .heroVisual {
+    min-height: 18rem;
+    max-width: 26rem;
+  }
+
+  .featureCard,
+  .featureCard:nth-child(1),
+  .featureCard:nth-child(2) {
+    grid-column: span 6;
+  }
+
+  .featureCard:nth-child(6) {
+    grid-column: span 12;
+  }
+
   .codeLayout {
     grid-template-columns: 1fr;
     gap: 3rem;
   }
-  
-  .featuresGrid {
-    grid-template-columns: 1fr;
-    gap: 1.5rem;
-  }
-  
+
   .sectionTitle {
-    font-size: 2rem;
+    font-size: 1.75rem;
   }
-  
+
   .ctaTitle {
-    font-size: 2rem;
+    font-size: 1.9rem;
   }
 }
 
-@media screen and (max-width: 768px) {
+@media screen and (max-width: 640px) {
+  .heroTitle {
+    font-size: 2.2rem;
+  }
+
+  .heroVisual {
+    display: none;
+  }
+
+  .featureCard,
+  .featureCard:nth-child(1),
+  .featureCard:nth-child(2),
+  .featureCard:nth-child(6) {
+    grid-column: span 12;
+  }
+
+  .featureCard:nth-child(6) {
+    grid-template-columns: 1fr;
+  }
+
+  .featureCard:nth-child(6) .featureIcon {
+    grid-row: auto;
+    margin-bottom: 1.1rem;
+  }
+
   .heroButtons,
   .ctaButtons {
     flex-direction: column;
+    align-items: stretch;
   }
-  
+
   .primaryButton,
   .secondaryButton {
     width: 100%;
-    max-width: 280px;
+    max-width: 300px;
     justify-content: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .visPanel,
+  .visGauge {
+    animation: none;
+  }
+
+  .featureCard,
+  .primaryButton,
+  .secondaryButton {
+    transition: none;
   }
 }
