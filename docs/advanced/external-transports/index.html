@@ -5,7 +5,7 @@
 <meta name="generator" content="Docusaurus v3.9.2">
 <title data-rh="true">External Transports | hass-react</title><meta data-rh="true" name="viewport" content="width=device-width,initial-scale=1"><meta data-rh="true" name="twitter:card" content="summary_large_image"><meta data-rh="true" property="og:image" content="https://hass-react.com/img/docusaurus-social-card.jpg"><meta data-rh="true" name="twitter:image" content="https://hass-react.com/img/docusaurus-social-card.jpg"><meta data-rh="true" property="og:url" content="https://hass-react.com/docs/advanced/external-transports"><meta data-rh="true" property="og:locale" content="en"><meta data-rh="true" name="docusaurus_locale" content="en"><meta data-rh="true" name="docsearch:language" content="en"><meta data-rh="true" name="docusaurus_version" content="current"><meta data-rh="true" name="docusaurus_tag" content="docs-default-current"><meta data-rh="true" name="docsearch:version" content="current"><meta data-rh="true" name="docsearch:docusaurus_tag" content="docs-default-current"><meta data-rh="true" property="og:title" content="External Transports | hass-react"><meta data-rh="true" name="description" content="Use an external transport when the browser should not authenticate directly with Home Assistant. This is useful for kiosks, wall-mounted dashboards, server-rendered applications, and backend-for-frontend architectures where a server owns the Home Assistant credentials."><meta data-rh="true" property="og:description" content="Use an external transport when the browser should not authenticate directly with Home Assistant. This is useful for kiosks, wall-mounted dashboards, server-rendered applications, and backend-for-frontend architectures where a server owns the Home Assistant credentials."><link data-rh="true" rel="icon" href="/img/favicon.ico"><link data-rh="true" rel="canonical" href="https://hass-react.com/docs/advanced/external-transports"><link data-rh="true" rel="alternate" href="https://hass-react.com/docs/advanced/external-transports" hreflang="en"><link data-rh="true" rel="alternate" href="https://hass-react.com/docs/advanced/external-transports" hreflang="x-default"><script data-rh="true" type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[{"@type":"ListItem","position":1,"name":"External Transports","item":"https://hass-react.com/docs/advanced/external-transports"}]}</script><link rel="alternate" type="application/rss+xml" href="/blog/rss.xml" title="hass-react RSS Feed">
 <link rel="alternate" type="application/atom+xml" href="/blog/atom.xml" title="hass-react Atom Feed"><link rel="stylesheet" href="/assets/css/styles.3ade4332.css">
-<script src="/assets/js/runtime~main.b858ec04.js" defer="defer"></script>
+<script src="/assets/js/runtime~main.a7a94d37.js" defer="defer"></script>
 <script src="/assets/js/main.ea9059cb.js" defer="defer"></script>
 </head>
 <body class="navigation-with-keyboard">
@@ -40,6 +40,7 @@
 <ul>
 <li class=""><code>get_states</code></li>
 <li class=""><code>call_service</code></li>
+<li class=""><code>auth/current_user</code></li>
 <li class="">Service calls with <code>return_response: true</code>, including <code>todo.get_items</code></li>
 </ul>
 <p>Reject unsupported commands and gateway errors rather than returning fabricated responses.</p>
