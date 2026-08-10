@@ -3,6 +3,7 @@ import Link from '@docusaurus/Link';
 import useDocusaurusContext from '@docusaurus/useDocusaurusContext';
 import Layout from '@theme/Layout';
 import Heading from '@theme/Heading';
+import {Highlight, themes} from 'prism-react-renderer';
 
 import styles from './index.module.css';
 
@@ -140,17 +141,7 @@ function WhySection() {
   );
 }
 
-function CodeSection() {
-  return (
-    <section className={styles.codeSection}>
-      <div className="container">
-        <div className={styles.codeLayout}>
-          <div className={styles.codeExample}>
-            <div className={styles.windowBar} aria-hidden="true">
-              <span /><span /><span />
-            </div>
-            <pre className={styles.codeBlock}>
-              <code>{`// Render props
+const CODE_EXAMPLE = `// Render props
 <Light entityId="light.floor_lamp">
   {({ isOn, toggle }) => (
     <button onClick={toggle}>
@@ -163,8 +154,34 @@ function CodeSection() {
 const light = useLight('light.floor_lamp')
 <button onClick={light.toggle}>
   {light.isOn ? 'ON' : 'OFF'}
-</button>`}</code>
-            </pre>
+</button>`;
+
+function CodeSection() {
+  return (
+    <section className={styles.codeSection}>
+      <div className="container">
+        <div className={styles.codeLayout}>
+          <div className={styles.codeExample}>
+            <div className={styles.windowBar} aria-hidden="true">
+              <span /><span /><span />
+            </div>
+            <Highlight code={CODE_EXAMPLE} language="tsx" theme={themes.nightOwl}>
+              {({tokens, getLineProps, getTokenProps}) => (
+                // The panel keeps its own background in both color modes, so
+                // the theme is pinned dark and its background dropped.
+                <pre className={styles.codeBlock}>
+                  <code>
+                    {tokens.map((line, i) => (
+                      <div key={i} {...getLineProps({line})}>
+                        {line.map((token, key) => (
+                          <span key={key} {...getTokenProps({token})} />
+                        ))}
+                      </div>
+                    ))}
+                  </code>
+                </pre>
+              )}
+            </Highlight>
           </div>
           <div className={styles.codeFeatures}>
             <div className={styles.sectionHead}>
