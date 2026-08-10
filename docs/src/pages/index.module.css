@@ -42,7 +42,7 @@
 
 .heroTitle {
   font-size: clamp(2.5rem, 4.6vw, 3.75rem);
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.035em;
   line-height: 1.05;
   margin-bottom: 1.4rem;
@@ -611,7 +611,7 @@
 
 .ctaTitle {
   font-size: 2.35rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: -0.03em;
   margin-bottom: 1rem;
   color: #f0f7ff;
