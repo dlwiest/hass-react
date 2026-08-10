@@ -17,6 +17,7 @@
   "scripts": {
     "dev": "vite build --watch",
     "build": "vite build && tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "prepare": "npm run build",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vitest"
