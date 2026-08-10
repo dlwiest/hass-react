@@ -358,4 +358,50 @@ describe('HAProvider external transport', () => {
     expect(screen.getByTestId('error')).toHaveTextContent('Gateway unavailable')
     expect(screen.getByTestId('connected')).toHaveTextContent('false')
   })
+
+  it('keeps retrying through repeated connect failures and recovers when the gateway returns', async () => {
+    vi.useFakeTimers()
+    const fixture = createExternalFixture()
+    const realConnect = fixture.transport.connect as ReturnType<typeof vi.fn>
+    const originalImpl = realConnect.getMockImplementation()!
+    // Gateway is down for the first 6 attempts (initial + 5 retries), then back.
+    let attempts = 0
+    realConnect.mockImplementation(async (nextHandlers: HATransportHandlers) => {
+      attempts += 1
+      if (attempts <= 6) {
+        throw new Error('gateway event stream unavailable')
+      }
+      return originalImpl(nextHandlers)
+    })
+
+    const rendered = render(
+      <HAProvider url="http://gateway.local" transport={fixture.transport}>
+        <ConnectionHarness />
+      </HAProvider>
+    )
+
+    try {
+      await act(async () => {
+        await Promise.resolve()
+      })
+      expect(screen.getByTestId('state')).toHaveTextContent('error')
+
+      // Backoff schedule: 1s, 2s, 4s, 8s, 16s, 30s (cap), 30s...
+      // Advance stepwise: each act() boundary lets React flush the state
+      // update and re-arm the next retry effect (a single big jump would
+      // never yield to React between timers).
+      for (let step = 0; step < 60 && attempts < 7; step++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(2_000)
+        })
+      }
+
+      expect(attempts).toBeGreaterThanOrEqual(7)
+      expect(screen.getByTestId('state')).toHaveTextContent('connected')
+      expect(screen.getByTestId('connected')).toHaveTextContent('true')
+    } finally {
+      rendered.unmount()
+      vi.useRealTimers()
+    }
+  })
 })
