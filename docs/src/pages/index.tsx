@@ -78,20 +78,31 @@ function HeroSection() {
             </div>
           </div>
           <div className={styles.heroVisual} aria-hidden="true">
-            <div className={styles.visPanel}>
-              <div className={styles.visPanelTop}>
-                <div className={styles.visOrb} />
-                <div className={styles.visToggle}><span /></div>
+            <div className={styles.visDash}>
+              <div className={styles.visDashBar}>
+                <div className={styles.visDashTitle}><span /><span /></div>
+                <div className={styles.visDashStatus}><span /></div>
               </div>
-              <div className={styles.visRows}><span /><span /></div>
-              <div className={styles.visSlider}><span /></div>
-            </div>
-            <div className={styles.visGauge}>
-              <svg viewBox="0 0 72 72" className={styles.visGaugeSvg}>
-                <circle cx="36" cy="36" r="30" className={styles.visGaugeTrack} />
-                <circle cx="36" cy="36" r="30" className={styles.visGaugeArc} />
-              </svg>
-              <div className={styles.visGaugeRows}><span /><span /></div>
+              <div className={styles.visDashGrid}>
+                <div className={styles.visTile}>
+                  <div className={styles.visTileTop}>
+                    <div className={styles.visOrb} />
+                    <div className={styles.visToggle}><span /></div>
+                  </div>
+                  <div className={styles.visRows}><span /><span /></div>
+                </div>
+                <div className={styles.visTile}>
+                  <svg viewBox="0 0 72 72" className={styles.visGaugeSvg}>
+                    <circle cx="36" cy="36" r="30" className={styles.visGaugeTrack} />
+                    <circle cx="36" cy="36" r="30" className={styles.visGaugeArc} />
+                  </svg>
+                  <div className={styles.visGaugeRows}><span /><span /></div>
+                </div>
+                <div className={`${styles.visTile} ${styles.visTileWide}`}>
+                  <div className={styles.visRows}><span /><span /></div>
+                  <div className={styles.visSlider}><span /></div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

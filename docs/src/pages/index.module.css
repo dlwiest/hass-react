@@ -114,46 +114,112 @@
 }
 
 /* ---------------------------------------------------------------- */
-/* Hero visual — entity panel motif (purely decorative)              */
+/* Hero visual — single dashboard frame (purely decorative)          */
 /* ---------------------------------------------------------------- */
 .heroVisual {
   position: relative;
-  min-height: 22rem;
 }
 
-.visPanel {
-  position: absolute;
-  top: 0;
-  right: 0;
-  width: min(19.5rem, 88%);
+.visDash {
   background: var(--hr-surface);
   border: 1px solid var(--hr-border);
   border-radius: 20px;
   box-shadow: var(--hr-shadow-lift);
-  padding: 1.4rem 1.5rem 1.6rem;
-  animation: visFloat 7s ease-in-out infinite alternate;
+  padding: 1.25rem 1.25rem 1.4rem;
 }
 
-.visPanelTop {
+.visDashBar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 1.35rem;
+  padding-bottom: 1rem;
+  margin-bottom: 1.1rem;
+  border-bottom: 1px solid var(--hr-border);
+}
+
+.visDashTitle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.visDashTitle span {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--ifm-color-emphasis-300);
+}
+
+.visDashTitle span:first-child {
+  width: 7.5rem;
+}
+
+.visDashTitle span:last-child {
+  width: 4.5rem;
+  height: 8px;
+  background: var(--ifm-color-emphasis-200);
+}
+
+.visDashStatus {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--hr-border);
+  border-radius: 999px;
+}
+
+.visDashStatus span {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+}
+
+.visDashStatus::after {
+  content: '';
+  display: block;
+  width: 2.75rem;
+  height: 8px;
+  border-radius: 4px;
+  background: var(--ifm-color-emphasis-200);
+}
+
+.visDashGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+.visTile {
+  background: var(--hr-bg);
+  border: 1px solid var(--hr-border);
+  border-radius: 14px;
+  padding: 1rem 1.1rem 1.1rem;
+}
+
+.visTileTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.1rem;
 }
 
 .visOrb {
-  width: 54px;
-  height: 54px;
+  width: 42px;
+  height: 42px;
   border-radius: 50%;
   background: radial-gradient(circle at 34% 30%, #ffe9b0, #ffb020 62%, #f08c00);
   box-shadow:
-    0 0 24px rgba(255, 176, 32, 0.55),
-    0 0 64px rgba(255, 176, 32, 0.3);
+    0 0 18px rgba(255, 176, 32, 0.5),
+    0 0 48px rgba(255, 176, 32, 0.28);
 }
 
 .visToggle {
-  width: 48px;
-  height: 27px;
+  width: 42px;
+  height: 24px;
   border-radius: 999px;
   background: var(--hr-brand);
   display: flex;
@@ -163,24 +229,23 @@
 }
 
 .visToggle span {
-  width: 21px;
-  height: 21px;
+  width: 18px;
+  height: 18px;
   border-radius: 50%;
   background: #fff;
-  transform: translateX(21px);
+  transform: translateX(18px);
   box-shadow: 0 1px 3px rgba(8, 47, 73, 0.4);
 }
 
 .visRows {
   display: flex;
   flex-direction: column;
-  gap: 0.6rem;
-  margin-bottom: 1.5rem;
+  gap: 0.55rem;
 }
 
 .visRows span {
   display: block;
-  height: 10px;
+  height: 9px;
   border-radius: 5px;
   background: var(--ifm-color-emphasis-200);
 }
@@ -191,6 +256,24 @@
 
 .visRows span:last-child {
   width: 44%;
+}
+
+.visTileWide {
+  grid-column: span 2;
+}
+
+.visTileWide .visRows {
+  flex-direction: row;
+  justify-content: space-between;
+  margin-bottom: 1.1rem;
+}
+
+.visTileWide .visRows span:first-child {
+  width: 34%;
+}
+
+.visTileWide .visRows span:last-child {
+  width: 18%;
 }
 
 .visSlider {
@@ -224,24 +307,11 @@
   box-shadow: 0 1px 4px rgba(8, 47, 73, 0.3);
 }
 
-.visGauge {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 11rem;
-  background: var(--hr-surface);
-  border: 1px solid var(--hr-border);
-  border-radius: 16px;
-  box-shadow: var(--hr-shadow);
-  padding: 1.1rem 1.1rem 1.2rem;
-  animation: visFloat 9s ease-in-out infinite alternate-reverse;
-}
-
 .visGaugeSvg {
   display: block;
-  width: 76px;
-  height: 76px;
-  margin: 0 auto 0.9rem;
+  width: 68px;
+  height: 68px;
+  margin: 0 auto 0.85rem;
   transform: rotate(-90deg);
 }
 
@@ -280,11 +350,6 @@
 .visGaugeRows span:last-child {
   width: 38%;
   margin: 0 auto;
-}
-
-@keyframes visFloat {
-  from { transform: translateY(0); }
-  to { transform: translateY(-9px); }
 }
 
 /* ---------------------------------------------------------------- */
@@ -608,7 +673,6 @@
   }
 
   .heroVisual {
-    min-height: 18rem;
     max-width: 26rem;
   }
 
@@ -676,11 +740,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .visPanel,
-  .visGauge {
-    animation: none;
-  }
-
   .featureCard,
   .primaryButton,
   .secondaryButton {
