@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import type { EntityState, StateChangedEvent } from '../types'
-import type { Connection } from 'home-assistant-js-websocket'
+import type { HAConnection } from '../types'
 import { withRetry } from '../utils/retry'
 
 // Central store for managing Home Assistant entity states and WebSocket subscriptions
@@ -28,10 +28,10 @@ interface EntityStore {
   subscriptionErrors: Map<string, Error>
 
   // Current Home Assistant WebSocket connection
-  connection: Connection | null
+  connection: HAConnection | null
 
   // Actions
-  setConnection: (connection: Connection | null) => void
+  setConnection: (connection: HAConnection | null) => void
   updateEntity: (entityId: string, state: EntityState) => void
   setSubscriptionError: (entityId: string, error: Error | null) => void
   registerEntity: (entityId: string, callback: () => void) => void
@@ -236,7 +236,7 @@ export const useStore = create<EntityStore>()(
 // Subscribe to a single entity: fetch current state + set up real-time updates
 // Used when an entity is registered after the connection is already established
 async function subscribeToEntity(
-  connection: Connection,
+  connection: HAConnection,
   entityId: string,
   get: () => EntityStore,
   set: (partial: Partial<EntityStore> | ((state: EntityStore) => Partial<EntityStore>)) => void
@@ -274,7 +274,7 @@ async function subscribeToEntity(
 // Subscribe to real-time WebSocket updates for an entity
 // Used when we already have the entity state and just need the subscription
 async function subscribeToEntityUpdates(
-  connection: Connection,
+  connection: HAConnection,
   entityId: string,
   get: () => EntityStore,
   set: (partial: Partial<EntityStore> | ((state: EntityStore) => Partial<EntityStore>)) => void

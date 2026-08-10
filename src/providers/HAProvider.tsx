@@ -1,15 +1,21 @@
 import { createContext, useContext, useEffect, useReducer, useCallback, useRef, useState, ReactNode } from 'react'
-import { Connection, Auth } from 'home-assistant-js-websocket'
+import type { Auth, Connection } from 'home-assistant-js-websocket'
 import { useStore } from '../services/entityStore'
 import { createMockConnection } from '../services/mockConnection'
 import { createAuthenticatedConnection, refreshTokenIfNeeded, DEFAULT_TOKEN_BUFFER_MINUTES } from '../services/auth'
 import { useAuth } from '../hooks/useAuth'
-import type { HAConfig, ConnectionStatus, EntityState } from '../types'
+import type { HAConfig, HAConnection, HATransport, HATransportHandlers, ConnectionStatus, EntityState } from '../types'
 
 // Token refresh retry constants
 const BASE_PERIODIC_RETRY_DELAY_MS = 60 * 1000 // 1 minute
 const MAX_PERIODIC_RETRY_DELAY_MS = 16 * 60 * 1000 // 16 minutes
 const BASE_VISIBILITY_RETRY_DELAY_MS = 30 * 1000 // 30 seconds
+
+function observeTransportOperation(operation: void | Promise<void>, warning: string): void {
+  if (operation) {
+    void operation.catch((error) => console.warn(warning, error))
+  }
+}
 
 // Token refresh retry state
 interface RetryState {
@@ -77,19 +83,19 @@ function createRetryExecutor(config: RetryConfig) {
 type ConnectionState =
   | { type: 'idle'; connection: null; error: null; retryCount: 0 }
   | { type: 'connecting'; connection: null; error: null; retryCount: number }
-  | { type: 'connected'; connection: Connection; error: null; retryCount: 0 }
+  | { type: 'connected'; connection: HAConnection; error: null; retryCount: 0 }
   | { type: 'disconnected'; connection: null; error: null; retryCount: number }
   | { type: 'error'; connection: null; error: Error; retryCount: number }
 
 // All possible state transitions
 type ConnectionAction =
   | { type: 'START_CONNECTING' }
-  | { type: 'CONNECTION_SUCCESS'; connection: Connection }
+  | { type: 'CONNECTION_SUCCESS'; connection: HAConnection }
   | { type: 'CONNECTION_ERROR'; error: Error }
   | { type: 'DISCONNECTED' }
   | { type: 'RETRY_SCHEDULED' }
   | { type: 'MANUAL_RECONNECT' }
-  | { type: 'READY_EVENT'; connection: Connection }
+  | { type: 'READY_EVENT'; connection: HAConnection }
 
 // State machine
 function connectionReducer(state: ConnectionState, action: ConnectionAction): ConnectionState {
@@ -162,23 +168,23 @@ function connectionReducer(state: ConnectionState, action: ConnectionAction): Co
   }
 }
 
-interface HAContextValue extends ConnectionStatus {
-  connection: Connection | null
+interface HAContextValue<TConnection extends HAConnection = HAConnection> extends ConnectionStatus {
+  connection: TConnection | null
   config: HAConfig
   logout: () => void
 }
 
-const HAContext = createContext<HAContextValue | null>(null)
+const HAContext = createContext<HAContextValue<HAConnection> | null>(null)
 
-export function useHAConnection() {
+export function useHAConnection<TConnection extends HAConnection = Connection>(): HAContextValue<TConnection> {
   const context = useContext(HAContext)
   if (!context) {
     throw new Error('useHAConnection must be used within HAProvider')
   }
-  return context
+  return context as HAContextValue<TConnection>
 }
 
-interface HAProviderProps {
+export interface HAProviderProps {
   children: ReactNode
   url: string
   token?: string
@@ -187,6 +193,7 @@ interface HAProviderProps {
   mockMode?: boolean
   mockData?: Record<string, EntityState>
   mockUser?: HAConfig['mockUser']
+  transport?: HATransport
   options?: HAConfig['options']
 }
 
@@ -199,8 +206,11 @@ export const HAProvider = ({
   mockMode = false,
   mockData,
   mockUser,
+  transport,
   options = {}
 }: HAProviderProps) => {
+  const usesExternalTransport = transport !== undefined
+  const usesMockMode = mockMode && !usesExternalTransport
   const [state, dispatch] = useReducer(connectionReducer, {
     type: 'idle',
     connection: null,
@@ -209,9 +219,11 @@ export const HAProvider = ({
   })
 
   const retryTimeoutRef = useRef<NodeJS.Timeout>()
-  const currentConnectionRef = useRef<Connection | null>(null)
+  const currentConnectionRef = useRef<HAConnection | null>(null)
   const currentAuthRef = useRef<Auth | null>(null)
   const connectionCleanupRef = useRef<(() => void) | null>(null)
+  const connectionAttemptRef = useRef(0)
+  const manuallyStoppedRef = useRef(false)
 
   // Grouped token refresh state
   const periodicRefreshState = useRef({
@@ -245,29 +257,44 @@ export const HAProvider = ({
       connectionCleanupRef.current = null
     }
 
-    // Close the connection if it exists
-    if (currentConnectionRef.current) {
+    const connection = currentConnectionRef.current
+    currentConnectionRef.current = null
+    if (connection) {
       try {
-        currentConnectionRef.current.close()
+        if (usesExternalTransport && transport) {
+          observeTransportOperation(
+            transport.disconnect(connection),
+            'Failed to disconnect external transport:'
+          )
+        } else {
+          const nativeConnection = connection as Connection
+          nativeConnection.close()
+        }
       } catch (error) {
         console.warn('Failed to close connection:', error)
       }
-      currentConnectionRef.current = null
     }
-  }, [])
+  }, [transport, usesExternalTransport])
 
   // Auth state management
-  const auth = useAuth(mockMode ? null : url, authMode)
+  const auth = useAuth((usesMockMode || usesExternalTransport) ? null : (url ?? null), authMode)
 
   // Development warnings for configuration issues
   useEffect(() => {
-    if (!mockMode) {
+    if (usesExternalTransport) {
+      if (mockMode) {
+        console.warn('HAProvider: transport takes precedence over mockMode.')
+      }
+      if (token || redirectUri) {
+        console.warn('HAProvider: token and redirectUri are ignored when transport is provided.')
+      }
+    } else if (!usesMockMode) {
       if (!url) {
-        console.warn('HAProvider: url prop is required when not in mock mode')
+        console.warn('HAProvider: url prop is required when neither mockMode nor transport is provided.')
       } else if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('ws://') && !url.startsWith('wss://')) {
         console.warn(`HAProvider: url "${url}" should start with http://, https://, ws://, or wss://`)
       }
-      
+
       // Only warn about missing token if using token auth mode
       const effectiveAuthMode = authMode === 'auto' ? (token ? 'token' : 'oauth') : authMode
       if (effectiveAuthMode === 'token' && !token) {
@@ -281,11 +308,73 @@ export const HAProvider = ({
         console.warn('HAProvider: token prop provided in mock mode is unnecessary and will be ignored.')
       }
     }
-  }, [url, token, mockMode, mockData, authMode])
+  }, [url, token, redirectUri, mockMode, mockData, authMode, usesExternalTransport, usesMockMode])
 
   // Async connection function
   const attemptConnection = useCallback(async () => {
-    if (mockMode) {
+    if (manuallyStoppedRef.current) return
+    const attemptId = ++connectionAttemptRef.current
+
+    if (usesExternalTransport && transport) {
+      try {
+        cleanupConnection()
+
+        let transportConnection: HAConnection | null = null
+        const handlers: HATransportHandlers = {
+          onDisconnected: () => {
+            // Ignore a late disconnect notification from a connection that has
+            // already been replaced by a manual or automatic reconnect.
+            if (
+              attemptId !== connectionAttemptRef.current ||
+              !transportConnection ||
+              currentConnectionRef.current !== transportConnection
+            ) return
+
+            const connection = transportConnection
+            currentConnectionRef.current = null
+            try {
+              observeTransportOperation(
+                transport.disconnect(connection),
+                'Failed to disconnect external transport:'
+              )
+            } catch (error) {
+              console.warn('Failed to disconnect external transport:', error)
+            }
+            try {
+              setStoreConnection(null)
+            } catch (error) {
+              console.warn('Failed to clear store connection:', error)
+            }
+            dispatch({ type: 'DISCONNECTED' })
+          },
+        }
+
+        const connection = await transport.connect(handlers)
+        if (attemptId !== connectionAttemptRef.current || manuallyStoppedRef.current) {
+          observeTransportOperation(
+            transport.disconnect(connection),
+            'Failed to disconnect external transport:'
+          )
+          return
+        }
+        transportConnection = connection
+        currentConnectionRef.current = connection
+        setLastConnectedAt(new Date())
+        dispatch({ type: 'CONNECTION_SUCCESS', connection })
+        try {
+          setStoreConnection(connection)
+        } catch (error) {
+          console.warn('Failed to set store connection:', error)
+        }
+      } catch (error) {
+        if (attemptId !== connectionAttemptRef.current || manuallyStoppedRef.current) return
+        console.error('External Home Assistant transport failed to connect:', error)
+        dispatch({ type: 'CONNECTION_ERROR', error: error as Error })
+      }
+      return
+    }
+
+    if (usesMockMode) {
       // Handle mock mode
       if (mockData) {
         const mockEntities = Object.entries(mockData).map(([id, data]) => ({
@@ -303,7 +392,7 @@ export const HAProvider = ({
         }
       }
 
-      const mockConn = createMockConnection() as Connection
+      const mockConn = createMockConnection()
       currentConnectionRef.current = mockConn
       setLastConnectedAt(new Date())
       dispatch({ type: 'CONNECTION_SUCCESS', connection: mockConn })
@@ -325,11 +414,16 @@ export const HAProvider = ({
       cleanupConnection()
 
       const { connection: conn, auth } = await createAuthenticatedConnection({
-        hassUrl: url,
+        hassUrl: url!,
         token,
         authMode,
         redirectUri
       })
+
+      if (attemptId !== connectionAttemptRef.current || manuallyStoppedRef.current) {
+        conn.close()
+        return
+      }
 
       // Store auth object for token refresh
       currentAuthRef.current = auth
@@ -375,6 +469,7 @@ export const HAProvider = ({
         console.warn('Failed to set store connection:', error)
       }
     } catch (err) {
+      if (attemptId !== connectionAttemptRef.current || manuallyStoppedRef.current) return
       const error = err as Error
       let helpfulMessage = `Connection failed: ${error.message}`
       
@@ -390,10 +485,11 @@ export const HAProvider = ({
       console.error(helpfulMessage)
       dispatch({ type: 'CONNECTION_ERROR', error })
     }
-  }, [url, token, authMode, redirectUri, mockMode, mockData, setStoreConnection, cleanupConnection])
+  }, [url, token, authMode, redirectUri, mockData, transport, usesExternalTransport, usesMockMode, setStoreConnection, cleanupConnection])
 
   // Start a connection attempt
   const connect = useCallback(() => {
+    manuallyStoppedRef.current = false
     // Clear any pending retries
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current)
@@ -405,11 +501,13 @@ export const HAProvider = ({
 
   // Manual reconnection (resets retry count)
   const reconnect = useCallback(() => {
+    manuallyStoppedRef.current = false
+    connectionAttemptRef.current += 1
     if (retryTimeoutRef.current) {
       clearTimeout(retryTimeoutRef.current)
     }
 
-    if (!mockMode) {
+    if (!usesMockMode) {
       cleanupConnection()
     }
 
@@ -419,12 +517,28 @@ export const HAProvider = ({
       dispatch({ type: 'START_CONNECTING' })
       attemptConnection()
     }, 0)
-  }, [attemptConnection, mockMode, cleanupConnection])
+  }, [attemptConnection, usesMockMode, cleanupConnection])
 
   // Logout function that immediately closes connection
   const handleLogout = useCallback(() => {
-    // Clear stored authentication
-    auth.logout()
+    manuallyStoppedRef.current = true
+    connectionAttemptRef.current += 1
+    if (retryTimeoutRef.current) {
+      clearTimeout(retryTimeoutRef.current)
+      retryTimeoutRef.current = undefined
+    }
+
+    // Clear authentication owned by the active connection mode.
+    try {
+      if (usesExternalTransport) {
+        const logoutResult = transport?.logout?.()
+        observeTransportOperation(logoutResult, 'Failed to log out cleanly:')
+      } else {
+        auth.logout()
+      }
+    } catch (error) {
+      console.warn('Failed to log out cleanly:', error)
+    }
 
     // Clear auth ref and token refresh state
     currentAuthRef.current = null
@@ -450,12 +564,13 @@ export const HAProvider = ({
       console.warn('Failed to clear store connection:', error)
     }
     dispatch({ type: 'DISCONNECTED' })
-  }, [auth, setStoreConnection, cleanupConnection])
+  }, [auth, transport, usesExternalTransport, setStoreConnection, cleanupConnection])
 
   // Handle auto-retry for disconnections and errors
   useEffect(() => {
     const shouldAutoRetry = (state.type === 'disconnected' || state.type === 'error') &&
-      !mockMode &&
+      !usesMockMode &&
+      !manuallyStoppedRef.current &&
       options.autoReconnect !== false
 
     if (shouldAutoRetry) {
@@ -486,11 +601,11 @@ export const HAProvider = ({
         clearTimeout(retryTimeoutRef.current)
       }
     }
-  }, [state.type, state.retryCount, mockMode, options.autoReconnect, attemptConnection])
+  }, [state.type, state.retryCount, usesMockMode, options.autoReconnect, attemptConnection])
 
   // Periodic token refresh - runs when connected and using OAuth
   useEffect(() => {
-    if (state.type === 'connected' && currentAuthRef.current && !mockMode && authMode !== 'token') {
+    if (state.type === 'connected' && currentAuthRef.current && !usesMockMode && !usesExternalTransport && authMode !== 'token') {
       const refreshIntervalMs = (options.tokenRefreshIntervalMinutes || 30) * 60 * 1000
 
       // Create retry executor with exponential backoff
@@ -532,11 +647,11 @@ export const HAProvider = ({
       }
     }
     return undefined
-  }, [state.type, mockMode, authMode, options.tokenRefreshIntervalMinutes, options.tokenRefreshBufferMinutes])
+  }, [state.type, usesMockMode, usesExternalTransport, authMode, options.tokenRefreshIntervalMinutes, options.tokenRefreshBufferMinutes])
 
   // Visibility change handler - refresh tokens when app becomes visible
   useEffect(() => {
-    if (!mockMode && authMode !== 'token') {
+    if (!usesMockMode && !usesExternalTransport && authMode !== 'token') {
       const bufferMinutes = options.tokenRefreshBufferMinutes || DEFAULT_TOKEN_BUFFER_MINUTES
 
       // Create retry executor with exponential backoff
@@ -578,13 +693,15 @@ export const HAProvider = ({
       }
     }
     return undefined
-  }, [state.type, mockMode, authMode, options.tokenRefreshBufferMinutes])
+  }, [state.type, usesMockMode, usesExternalTransport, authMode, options.tokenRefreshBufferMinutes])
 
   // Auto-connect on mount
   useEffect(() => {
     connect()
 
     return () => {
+      manuallyStoppedRef.current = true
+      connectionAttemptRef.current += 1
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current)
       }
@@ -612,7 +729,7 @@ export const HAProvider = ({
   }, [])
 
   // Map internal state to public interface
-  const contextValue: HAContextValue = {
+  const contextValue: HAContextValue<HAConnection> = {
     connection: state.connection,
     connected: state.type === 'connected',
     connecting: state.type === 'connecting',
@@ -622,12 +739,13 @@ export const HAProvider = ({
     connectionState: state.type,
     retryCount: state.retryCount,
     nextRetryIn,
-    isAutoRetrying: (state.type === 'disconnected' || state.type === 'error') && 
-                   !mockMode && 
-                   options.autoReconnect !== false && 
+    isAutoRetrying: (state.type === 'disconnected' || state.type === 'error') &&
+                   !usesMockMode &&
+                   !manuallyStoppedRef.current &&
+                   options.autoReconnect !== false &&
                    !!nextRetryIn,
     lastConnectedAt,
-    config: { url, token, authMode, redirectUri, mockMode, mockData, mockUser, options },
+    config: { url, token, authMode, redirectUri, mockMode, mockData, mockUser, transport, options },
   }
 
   return <HAContext.Provider value={contextValue}>{children}</HAContext.Provider>

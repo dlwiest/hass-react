@@ -1,5 +1,5 @@
 import { useStore } from './entityStore'
-import type { Connection } from 'home-assistant-js-websocket'
+import type { HAConnection } from '../types'
 import { mockServiceCall } from '../test/utils/mockStateTransitions'
 import { mockTodoItems, mockCalendarEvents, type MockTodoItem, type MockCalendarEvent } from './mockData'
 
@@ -22,7 +22,7 @@ interface GetStatesMessage {
 
 type MockMessage = ServiceCallMessage | GetStatesMessage | { type: string }
 
-export function createMockConnection(): Partial<Connection> {
+export function createMockConnection(): HAConnection {
   return {
     sendMessagePromise: async (message: MockMessage) => {
       const { type } = message
@@ -266,5 +266,5 @@ export function createMockConnection(): Partial<Connection> {
     addEventListener: () => {},
     removeEventListener: () => {},
     close: () => {},
-  } as Partial<Connection>
+  } as HAConnection
 }

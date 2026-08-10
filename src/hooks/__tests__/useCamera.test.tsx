@@ -227,6 +227,19 @@ describe('useCamera', () => {
       expect(result.current.imageUrl).toBeNull()
     })
 
+    it('should not expose camera access tokens through external transports', () => {
+      mockUseHAConnection.mockReturnValue({
+        config: { url: 'https://dashboard.example.com', transport: {} }
+      })
+      mockUseEntity.mockReturnValue(createMockCameraEntity('test', 'idle', {
+        access_token: 'must-not-reach-the-browser'
+      }))
+
+      const { result } = renderHook(() => useCamera('camera.test'))
+
+      expect(result.current.imageUrl).toBeNull()
+    })
+
     it('should return null when no config URL', () => {
       mockUseHAConnection.mockReturnValue({
         config: { url: null }
@@ -630,6 +643,21 @@ describe('useCamera', () => {
 
         expect(url).toContain('/api/camera_proxy_stream/camera.test')
         expect(url).toContain('token=test-token-123')
+      })
+
+      it('should not construct tokenized MJPEG URLs for external transports', async () => {
+        mockUseHAConnection.mockReturnValue({
+          config: { url: 'https://dashboard.example.com', transport: {} },
+          connection: mockConnection
+        })
+        mockUseEntity.mockReturnValue(createMockCameraEntity('test', 'idle', {
+          supported_features: CameraFeatures.SUPPORT_STREAM,
+          access_token: 'must-not-reach-the-browser'
+        }))
+
+        const { result } = renderHook(() => useCamera('camera.test'))
+
+        await expect(result.current.getStreamUrl({ type: 'mjpeg' })).resolves.toBeNull()
       })
 
       it('should convert relative HLS URLs to absolute', async () => {
