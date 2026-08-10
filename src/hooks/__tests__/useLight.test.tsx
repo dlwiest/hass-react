@@ -528,6 +528,23 @@ describe('useLight', () => {
       })
     })
 
+    it('exposes the kelvin bounds so consumers can build sliders without reading raw attributes', () => {
+      mockUseEntity.mockReturnValue({
+        ...createMockLightEntity('test', 'on', {
+          supported_color_modes: ['color_temp'],
+          color_temp_kelvin: 3000,
+          min_color_temp_kelvin: 2000,
+          max_color_temp_kelvin: 6500
+        }),
+        callService: vi.fn()
+      })
+
+      const { result } = renderHook(() => useLight('light.test'))
+
+      expect(result.current.minColorTempKelvin).toBe(2000)
+      expect(result.current.maxColorTempKelvin).toBe(6500)
+    })
+
     it('should call light.turn_on service with multiple parameters', async () => {
       const mockCallService = vi.fn()
       mockUseEntity.mockReturnValue({

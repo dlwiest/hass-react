@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - **BREAKING:** Camera service methods now require their Home Assistant targets: migrate `snapshot()` to `snapshot(filename)`, `record(undefined, duration)` to `record(filename, duration)`, and `playStream()` to `playStream(mediaPlayer)`
-- **BREAKING:** `setColorTemp` now accepts kelvin and sends `color_temp_kelvin`, aligned with Home Assistant 2026.3; migrate mired values to kelvin and use `min_color_temp_kelvin` and `max_color_temp_kelvin` for bounds
+- **BREAKING:** `setColorTemp` now accepts kelvin and sends `color_temp_kelvin`, aligned with Home Assistant 2026.3; migrate mired values to kelvin and read the bounds from the new `minColorTempKelvin` and `maxColorTempKelvin` state fields
 
 ### Fixed
 - Connection failures are normalized into typed authentication errors, including numeric errors from `home-assistant-js-websocket`

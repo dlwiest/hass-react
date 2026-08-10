@@ -39,6 +39,8 @@ export interface LightState extends BaseEntityHook<LightAttributes>, LightCapabi
   brightness: number
   brightnessPercent: number
   colorTemp?: number
+  minColorTempKelvin?: number
+  maxColorTempKelvin?: number
   rgbColor?: [number, number, number]
   effect?: string
   availableEffects: string[]

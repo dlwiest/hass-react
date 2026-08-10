@@ -162,6 +162,8 @@ export function useLight(entityId: string): LightState {
     brightness,
     brightnessPercent,
     colorTemp,
+    minColorTempKelvin,
+    maxColorTempKelvin,
     rgbColor: attributes.rgb_color,
     effect: attributes.effect,
     supportsBrightness,
