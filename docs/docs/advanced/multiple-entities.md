@@ -4,11 +4,11 @@ sidebar_position: 1
 
 # Working with Multiple Entities
 
-When building dashboards or complex interfaces, you often need to work with multiple entities at once. hass-react provides the `useEntityGroup` hook to efficiently manage collections of entities.
+Dashboards usually need more than one entity at a time. The `useEntityGroup` hook subscribes to a list of entities in a single call.
 
 ## useEntityGroup Hook
 
-The `useEntityGroup` hook allows you to subscribe to multiple entities and receive updates when any of them change. It returns an array of raw `EntityState` objects:
+Pass `useEntityGroup` a list of entity IDs and it returns an array of raw `EntityState` objects, updated whenever any of them change:
 
 ```tsx
 import { useEntityGroup } from 'hass-react';
@@ -128,7 +128,7 @@ function FloorControl() {
 
 ## Combining with Individual Entity Hooks
 
-For entities that need control functionality, combine `useEntityGroup` for overview data with individual hooks for controls:
+`useEntityGroup` returns read-only state. When some entities also need controls, pair it with individual hooks:
 
 ```tsx
 function LightingDashboard() {
@@ -191,11 +191,7 @@ function LightingDashboard() {
 
 ## Performance Considerations
 
-`useEntityGroup` is optimized for performance:
-
-- **Efficient subscriptions**: Only subscribes to the entities you specify
-- **Automatic cleanup**: Unsubscribes when entities are removed from the list
-- **Minimal re-renders**: Only re-renders when the tracked entities actually change
+`useEntityGroup` subscribes only to the entities you pass it and unsubscribes when they leave the list. It re-renders only when a tracked entity actually changes.
 
 ```tsx
 function OptimizedDashboard() {
@@ -247,7 +243,7 @@ function OptimizedDashboard() {
 Entities in the group might be unavailable or have errors:
 
 ```tsx
-function RobustEntityGroup() {
+function AvailabilityAwareGroup() {
   const entities = useEntityGroup([
     'light.living_room',
     'light.possibly_offline',
@@ -284,7 +280,7 @@ function RobustEntityGroup() {
 interface EntityState {
   entity_id: string;
   state: string;
-  attributes: Record<string, any>;
+  attributes: Record<string, unknown>;
   last_changed: string;
   last_updated: string;
   context: {
@@ -297,7 +293,7 @@ interface EntityState {
 
 ## Single Entity Pattern
 
-You can also use `useEntityGroup` with a single entity if you only need the raw state data:
+If you only need raw state data, `useEntityGroup` works with a single entity too (it also accepts a bare string instead of an array):
 
 ```tsx
 function SimpleEntityDisplay() {
@@ -320,4 +316,4 @@ function SimpleEntityDisplay() {
 }
 ```
 
-The `useEntityGroup` hook is perfect for dashboards, overview screens, and any interface that needs to display or monitor multiple Home Assistant entities efficiently.
+Use `useEntityGroup` anywhere you need to watch a batch of entities without wiring up an individual hook for each one.

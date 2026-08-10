@@ -4,7 +4,7 @@ sidebar_position: 1
 
 # Alarm Control Panel
 
-Control security alarm systems with arming, disarming, and trigger functionality.
+Arm and disarm security panels, watch their state, and trigger the alarm on panels that support it.
 
 ## Quick Example
 
@@ -80,6 +80,8 @@ The AlarmControlPanel component provides these props to your render function:
 - **`armCustomBypass(code?: string)`** - Arm with custom bypass with optional security code
 - **`trigger()`** - Manually trigger the alarm
 
+The arm methods and `trigger` are each gated on their matching support flag; only `disarm` always goes through. Panels declare features individually, so a panel that supports trigger doesn't necessarily support vacation arming (or any other mode). Calling a method the panel doesn't support, like `armVacation` on a trigger-only panel, throws a `FeatureNotSupportedError`. Check the `supports*` flags before rendering the controls.
+
 #### Entity Properties
 - **`entityId`** (`string`) - The entity ID
 - **`state`** (`string`) - Raw state value from Home Assistant
@@ -102,7 +104,7 @@ function MyComponent() {
 }
 ```
 
-The `useAlarmControlPanel` hook returns an object with all the same properties and methods as the component's render props.
+The `useAlarmControlPanel` hook returns the same properties and methods the component passes to its render function.
 
 ## List All Alarm Control Panels
 
@@ -127,7 +129,7 @@ function AlarmPanelList() {
 }
 ```
 
-The `useAlarmControlPanels` hook fetches all alarm control panel entities from Home Assistant and returns an array of alarm panel objects.
+It returns plain entity objects, one per alarm panel in your Home Assistant instance.
 
 ## Examples
 

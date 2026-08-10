@@ -74,17 +74,17 @@ function LightControl() {
 }
 ```
 
-Both approaches give you the same functionality - choose the pattern you prefer!
+Both do the same thing. Pick whichever pattern you prefer.
 
 ## Performance Benefits
 
-hass-react is built for efficiency:
+Subscriptions are managed for you:
 
-- **Shared subscriptions** - Multiple components watching the same entity automatically share a single WebSocket subscription
-- **Automatic cleanup** - Subscriptions are removed when components unmount, preventing memory leaks
-- **Lazy loading** - Only entities that are actually rendered are subscribed to
+- **Shared subscriptions** - Components watching the same entity share a single WebSocket subscription
+- **Automatic cleanup** - Subscriptions are removed when a component unmounts
+- **Lazy loading** - Only entities you actually render get subscribed
 
-This means you can build complex dashboards with dozens of entity displays without worrying about performance or connection overhead.
+A dashboard with dozens of entity displays still runs over one WebSocket connection.
 
 ## Next Steps
 

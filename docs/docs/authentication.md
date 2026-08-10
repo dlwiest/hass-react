@@ -4,11 +4,11 @@ sidebar_position: 2
 
 # Authentication
 
-hass-react supports both OAuth 2.0 and long-lived token authentication with automatic detection. Choose the method that works best for your setup.
+hass-react supports OAuth 2.0 and long-lived token authentication, and detects which to use based on the props you pass.
 
 ## OAuth 2.0 (Recommended)
 
-OAuth provides secure, user-friendly authentication without exposing tokens in your code:
+OAuth gives users a normal Home Assistant login and keeps tokens out of your code:
 
 ```tsx
 <HAProvider url="http://homeassistant.local:8123" authMode="oauth">
@@ -19,13 +19,13 @@ OAuth provides secure, user-friendly authentication without exposing tokens in y
 When using OAuth:
 - Users get a standard login flow
 - No tokens to manage or secure
-- Automatic token refresh with periodic background refresh and visibility-based refresh
+- Tokens refresh automatically in the background and when the app regains focus
 - Sessions persist across app restarts and long periods of inactivity
 - Users can revoke access from Home Assistant settings
 
 ## Long-lived Token
 
-Traditional token-based authentication for when you have a specific token:
+Already have a long-lived access token? Pass it directly:
 
 ```tsx
 <HAProvider 
@@ -54,13 +54,13 @@ Applications that keep Home Assistant credentials on a server can supply an exte
 </HAProvider>
 ```
 
-This mode is intended for always-on deployments such as kiosks and wall-mounted dashboards. Because the browser never authenticates with Home Assistant, there is no browser session or token to expire — the dashboard does not land back on a login screen. The gateway maintains the authenticated Home Assistant connection while the browser receives sanitized events and sends allowlisted commands.
+This mode is for always-on deployments like kiosks and wall-mounted dashboards. The browser never authenticates with Home Assistant, so there's no session or token to expire and the dashboard never lands back on a login screen. The gateway holds the authenticated connection while the browser receives sanitized events and sends allowlisted commands.
 
 See [External Transports](/docs/advanced/external-transports) for the transport contract and security requirements.
 
 ## Auto-detection (Default)
 
-By default, hass-react chooses the best authentication method automatically:
+By default, hass-react picks the authentication method based on whether you pass a token:
 
 ```tsx
 // Uses OAuth if no token provided
@@ -139,7 +139,7 @@ The logout function:
 
 ### OAuth Token Refresh (OAuth Only)
 
-Configure automatic token refresh behavior to maintain long-lived sessions:
+Configure token refresh to keep long-running sessions alive:
 
 ```tsx
 <HAProvider
@@ -158,13 +158,12 @@ Configure automatic token refresh behavior to maintain long-lived sessions:
 - **Retry with Exponential Backoff**: If token refresh fails (e.g., network issue), the library automatically retries:
   - Periodic refresh: up to 5 retries (1min, 2min, 4min, 8min, 16min delays)
   - Visibility refresh: up to 3 retries (30s, 60s, 120s delays)
-- **Default Values**: 30 minutes for refresh interval, 5 minutes for buffer
 
-This ensures users don't get logged out when:
-- Leaving the app open for extended periods (ideal for wall-mounted tablets)
-- Experiencing temporary network connectivity issues
-- Switching between apps/tabs frequently
-- Returning to the app after hours away
+This keeps users logged in when:
+- The app stays open for days (wall-mounted tablets)
+- The network drops for a bit
+- They switch between apps or tabs
+- They come back after hours away
 
 **Example with more frequent refresh checks:**
 ```tsx
@@ -178,7 +177,7 @@ This ensures users don't get logged out when:
 />
 ```
 
-**Note**: The retry mechanism ensures that even if refresh fails temporarily, the app will keep trying automatically without logging the user out. This is especially useful for always-on control panels like wall-mounted tablets.
+**Note**: If a refresh fails temporarily, the library keeps retrying instead of logging the user out. Handy for always-on panels like wall-mounted tablets.
 
 ### Service Call Retry
 
@@ -219,12 +218,12 @@ function AuthStatus() {
 }
 ```
 
-`HAProvider` drives the OAuth authorization redirect when no valid stored session exists.
-The `useAuth` hook reports authentication state for custom UI; a login button is not required to start the OAuth flow.
+`HAProvider` drives the OAuth redirect when no valid stored session exists.
+`useAuth` reports authentication state for your own UI; you don't need a login button to start the flow.
 
 ## Current User Information
 
-The `useCurrentUser` hook provides information about the currently authenticated user. This is especially useful for:
+The `useCurrentUser` hook returns the authenticated user. Useful for:
 - Displaying personalized greetings
 - Conditional rendering based on user roles (admin/owner)
 - Logging and analytics
@@ -332,7 +331,7 @@ If no `mockUser` is provided, mock mode uses a default mock user with admin and 
 
 **"Authentication failed"**
 - Check that your Home Assistant URL is correct and accessible
-- Ensure Home Assistant is running and reachable from your app
+- Make sure Home Assistant is running and reachable from your app
 - For tokens: verify the token hasn't expired or been revoked
 
 **"Connection refused"**
@@ -341,5 +340,5 @@ If no `mockUser` is provided, mock mode uses a default mock user with admin and 
 - Check if Home Assistant is behind a firewall or proxy
 
 **OAuth redirect issues**
-- Ensure your app URL is whitelisted in Home Assistant
+- Make sure your app URL is whitelisted in Home Assistant
 - Check browser console for CORS or redirect errors

@@ -10,32 +10,32 @@ const features = [
   {
     title: 'Flexible API',
     icon: '🪝',
-    description: 'Choose render props for full control or hooks for direct access. Both patterns work seamlessly.',
+    description: 'Every entity works as a render-prop component or a hook. Pick per component. Both read from the same store.',
   },
   {
-    title: 'Lightweight & Performant',
+    title: 'Small and Fast',
     icon: '⚡',
-    description: 'Built for speed and efficiency. Smart subscription management means you can build complex dashboards without worrying about performance.',
+    description: 'One WebSocket connection shared by every hook, and components only re-render when their own entity changes. Big dashboards stay fast.',
   },
   {
     title: 'Headless Design',
     icon: '🎨',
-    description: 'Completely unstyled components. Build exactly the interface you want with full design control.',
+    description: 'No styles shipped and no classes to override. Bring your own CSS, Tailwind, or component library.',
   },
   {
     title: 'Real-time Updates',
     icon: '🔌',
-    description: 'Automatic WebSocket connection management. Entity states update without having to manage polling.',
+    description: 'The provider owns the WebSocket. Entity states update the moment they change in Home Assistant, no polling.',
   },
   {
     title: 'Built-in State Management',
     icon: '📦',
-    description: 'No Redux or Context needed. Automatic state synchronization and WebSocket management out of the box.',
+    description: 'No Redux and no context wiring. Entity state lives in the library and stays in sync with Home Assistant on its own.',
   },
   {
     title: 'Simple Service Calls',
     icon: '🛠️',
-    description: 'Clean API for turning on lights, calling scripts, and triggering any Home Assistant service.',
+    description: 'Typed methods for common actions like turning on a light, plus callService for anything else Home Assistant exposes.',
   },
 ];
 
@@ -64,8 +64,8 @@ function HeroSection() {
             The React toolkit for Home Assistant UIs
           </Heading>
           <p className={styles.heroSubtitle}>
-            A headless React library providing hooks for Home Assistant entities, services, and real-time state. 
-            Build custom dashboards and interfaces without the hassle of WebSockets or HASS service calls.
+            Headless React hooks and components for Home Assistant entities and services. 
+            Build custom dashboards without the hassle of raw WebSockets or HASS service calls.
           </p>
           <div className={styles.heroButtons}>
             <Link className={styles.primaryButton} to="/docs/intro">
@@ -89,7 +89,7 @@ function WhySection() {
           Build better interfaces
         </Heading>
         <p className={styles.sectionSubtitle}>
-          Everything you need to create custom Home Assistant dashboards
+          The WebSocket and state plumbing is handled, so you can spend your time on the UI
         </p>
         <div className={styles.featuresGrid}>
           {features.map((feature, idx) => (
@@ -165,7 +165,7 @@ function CTASection() {
             Ready to build?
           </Heading>
           <p className={styles.ctaSubtitle}>
-            Start creating custom Home Assistant interfaces today
+            Point hass-react at your Home Assistant instance and start building
           </p>
           <div className={styles.ctaButtons}>
             <Link className={styles.primaryButton} to="/docs/intro">

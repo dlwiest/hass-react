@@ -4,11 +4,11 @@ sidebar_position: 2
 
 # Custom Service Calls
 
-Make direct Home Assistant service calls for advanced use cases not covered by entity-specific hooks.
+Call Home Assistant services directly when the entity hooks don't cover what you need.
 
 ## Overview
 
-The `useServiceCall` hook provides access to Home Assistant's raw service call API, allowing you to call any service with custom parameters. This is useful when:
+`useServiceCall` gives you Home Assistant's raw service call API, so you can call any service with any parameters. Reach for it when:
 
 - You need to call services not covered by entity-specific hooks
 - You want to control multiple entities with a single service call
@@ -199,7 +199,7 @@ function HybridControl() {
 Service calls include automatic retry logic with exponential backoff:
 
 ```tsx
-function RobustControl() {
+function LightControl() {
   const { callService } = useServiceCall()
   const [error, setError] = useState(null)
 
@@ -263,4 +263,4 @@ Retry behavior can be configured in the `HAProvider`:
 - Service calls are not entity-specific, so you must specify `entity_id` in the data
 - The hook automatically includes retry logic for failed calls
 - Errors are thrown as `ServiceCallError` or `ConnectionError`
-- Service calls don't automatically update entity state - use entity hooks for reactive updates
+- Service calls don't update entity state on their own. Use entity hooks for reactive updates

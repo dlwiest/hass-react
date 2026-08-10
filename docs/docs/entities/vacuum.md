@@ -4,7 +4,7 @@ sidebar_position: 15
 
 # Vacuum
 
-Control robot vacuums, monitor cleaning status, battery level, and manage cleaning operations.
+Start, pause, and dock robot vacuums, and keep an eye on battery and cleaning status.
 
 ## Quick Example
 
@@ -67,6 +67,8 @@ The Vacuum component provides these props to your render function:
 - **`supportsFanSpeed`** (`boolean`) - Whether the vacuum can adjust fan speed
 - **`supportsLocate`** (`boolean`) - Whether the vacuum can play locate sound/light
 - **`supportsCleanSpot`** (`boolean`) - Whether the vacuum can perform spot cleaning
+- **`supportsTurnOn`** (`boolean`) - Whether the vacuum supports `turn_on` (older vacuums that model power state)
+- **`supportsTurnOff`** (`boolean`) - Whether the vacuum supports `turn_off`
 
 #### Control Methods
 - **`start()`** (`Promise<void>`) - Start or resume cleaning
@@ -77,6 +79,8 @@ The Vacuum component provides these props to your render function:
 - **`cleanSpot()`** (`Promise<void>`) - Perform spot cleaning
 - **`setFanSpeed(speed: string)`** (`Promise<void>`) - Set fan speed mode
 - **`sendCommand(command: string, params?: object)`** (`Promise<void>`) - Send custom command
+- **`turnOn()`** (`Promise<void>`) - Turn on (legacy vacuums only; throws if `supportsTurnOn` is false)
+- **`turnOff()`** (`Promise<void>`) - Turn off (legacy vacuums only; throws if `supportsTurnOff` is false)
 
 #### Entity Properties
 - **`entityId`** (`string`) - The entity ID
@@ -108,7 +112,7 @@ The `useVacuum` hook returns an object with all the same properties and methods 
 
 ## List All Vacuums
 
-Use the `useVacuums` hook to retrieve all available vacuum entities:
+The `useVacuums` hook returns every vacuum entity Home Assistant knows about:
 
 ```tsx
 import { useVacuums } from 'hass-react'
@@ -129,7 +133,7 @@ function VacuumList() {
 }
 ```
 
-The `useVacuums` hook fetches all vacuum entities from Home Assistant and returns an array of vacuum objects.
+Each item in the array is a raw entity object with `entity_id`, `state`, and `attributes`.
 
 ## Examples
 

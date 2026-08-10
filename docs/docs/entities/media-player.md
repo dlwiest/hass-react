@@ -4,7 +4,7 @@ sidebar_position: 6
 
 # Media Player
 
-Control media players with playback, volume, source selection, and media information.
+Playback, volume, source selection, and track info for media player entities.
 
 ## Quick Example
 
@@ -49,7 +49,7 @@ import { MediaPlayer } from 'hass-react'
 
 ### Render Props
 
-The MediaPlayer component provides these props to your render function:
+The MediaPlayer component passes these props to your render function:
 
 #### State Properties
 - **`isPlaying`** (`boolean`) - Whether media is currently playing
@@ -141,7 +141,7 @@ The `useMediaPlayer` hook returns an object with all the same properties and met
 
 ## List All Media Players
 
-Use the `useMediaPlayers` hook to retrieve all available media player entities:
+The `useMediaPlayers` hook returns every media player entity Home Assistant knows about:
 
 ```tsx
 import { useMediaPlayers } from 'hass-react'
@@ -162,7 +162,7 @@ function MediaPlayerList() {
 }
 ```
 
-The `useMediaPlayers` hook fetches all media player entities from Home Assistant and returns an array of media player objects.
+Each item in the array is a raw entity object with `entity_id`, `state`, and `attributes`.
 
 ## Examples
 

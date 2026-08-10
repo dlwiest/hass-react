@@ -4,18 +4,18 @@
 [![npm downloads](https://img.shields.io/npm/dm/hass-react.svg)](https://www.npmjs.com/package/hass-react)
 [![Documentation](https://img.shields.io/badge/docs-hass--react.com-blue.svg)](https://hass-react.com)
 
-A React library for building custom Home Assistant interfaces. Headless components and hooks provide real-time entity data and controls, letting you focus on creating the perfect UI for your smart home.
+A React library for building custom Home Assistant interfaces. Headless components and hooks give you live entity state and typed controls. The UI is entirely yours.
 
 ## Features
 
 - **Headless & Unstyled** - Use with any UI library or custom CSS
-- **Easy Real-time Updates** - Fully managed WebSocket connection with intelligent subscription management
+- **Easy Real-time Updates** - One managed WebSocket connection shared by every hook and component
 - **Optimized Re-renders** - Components only re-render when their entity data changes
 - **Full TypeScript Support** - Complete type definitions for all supported entities
 - **OAuth & Token Auth** - Flexible authentication with connection state tracking
 - **External Transports** - Keep Home Assistant authentication server-side for kiosks and gateway-backed apps
-- **Robust Error Handling** - Informative error types with optional automatic retry for network errors
-- **Mock Mode** - Develop and test without need for a live Home Assistant instance
+- **Error Handling** - Typed errors with optional automatic retry for network failures
+- **Mock Mode** - Develop and test without a live Home Assistant instance
 - **17 Entity Types** - Lights, climate, alarms, cameras, media players, sensors, and more
 - **Camera Streaming** - HLS and MJPEG stream support with static images
 
@@ -27,7 +27,7 @@ npm install hass-react
 
 ## Quick Start
 
-Use headless components with render props or hooks - both give you full control over the UI:
+Every entity works as a render-prop component or a hook. Use whichever fits:
 
 ```jsx
 import { HAProvider, Light, useLight } from 'hass-react'
@@ -107,13 +107,13 @@ Three complete dashboard examples showing different UI approaches:
 
 ## Contributing
 
-This library is in active development and testing. While functional and production-ready, the API may evolve as new entity types and features are added.
+The library works and is in active use, but the API may still grow as new entity types and features are added.
 
 **Help wanted:**
-- 🐛 **Bug reports** - Found an issue? Let me know!
-- 🧪 **Testing feedback** - Try it with your setup and share your experience  
+- 🐛 **Bug reports** - If something breaks, open an issue
+- 🧪 **Testing feedback** - Try it against your own setup and tell me what you find
 - 💡 **Feature requests** - Missing an entity type or feature you need?
-- 🤝 **Contributions** - PRs welcome for new entities, improvements, or documentation
+- 🤝 **Contributions** - PRs welcome, whether it's a new entity type or a docs fix
 
 [Open an issue](https://github.com/dlwiest/hass-react/issues) or [start a discussion](https://github.com/dlwiest/hass-react/discussions)
 

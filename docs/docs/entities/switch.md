@@ -41,7 +41,7 @@ import { Switch } from 'hass-react'
 
 ### Render Props
 
-The Switch component provides these props to your render function:
+Props passed to your render function:
 
 #### State Properties
 - **`isOn`** (`boolean`) - Whether the switch is currently on
@@ -73,11 +73,11 @@ function MyComponent() {
 }
 ```
 
-The `useSwitch` hook returns an object with all the same properties and methods as the component's render props.
+Same object shape as the component's render props.
 
 ## List All Switches
 
-Use the `useSwitches` hook to retrieve all available switch entities:
+To list every switch, use `useSwitches`. It returns an array of switch entities:
 
 ```tsx
 import { useSwitches } from 'hass-react'
@@ -97,8 +97,6 @@ function SwitchList() {
   )
 }
 ```
-
-The `useSwitches` hook fetches all switch entities from Home Assistant and returns an array of switch objects.
 
 ## Examples
 

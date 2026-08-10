@@ -35,11 +35,7 @@ const { date, isAvailable } = useDateTime()
 
 ## Why Use Server Time?
 
-Using the Home Assistant server's time instead of client time ensures:
-
-- **Consistency** - Matches the time used by HA automations and schedules
-- **Timezone Accuracy** - Respects your HA server's configured timezone
-- **Synchronization** - Perfect for coordinating with HA events and automations
+Your browser's clock and your HA server's clock aren't always in sync, and they may not share a timezone. Automations and schedules run on server time, so if your UI needs to line up with them, read the server's clock instead of the client's.
 
 ## Component API
 
@@ -162,7 +158,7 @@ import { format } from 'date-fns'
 
 ## Notes
 
-- Uses the `sensor.date_time_iso` entity (requires setup - see above)
+- Uses the `sensor.date_time_iso` entity (requires setup, see above)
 - Updates every minute via WebSocket
-- Returns `null` when sensor is unavailable
-- Logs a helpful warning to console if sensor is not configured
+- `date` is `null` while the sensor is unavailable
+- Logs a console warning with setup steps if the sensor isn't configured

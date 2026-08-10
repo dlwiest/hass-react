@@ -27,7 +27,7 @@ const volume = useNumber('number.speaker_volume')
   min={volume.min}
   max={volume.max}
   step={volume.step}
-  value={volume.value}
+  value={volume.value ?? volume.min}
   onChange={(e) => volume.setValue(parseFloat(e.target.value))}
 />
 ```
@@ -48,10 +48,10 @@ import { Number } from 'hass-react'
 
 ### Render Props
 
-The Number component provides these props to your render function:
+The Number component passes these props to your render function:
 
 #### State Properties
-- **`value`** (`number`) - Current numeric value
+- **`value`** (`number | null`) - Current numeric value, or `null` when the entity is unavailable
 - **`min`** (`number`) - Minimum allowed value
 - **`max`** (`number`) - Maximum allowed value
 - **`step`** (`number`) - Step increment/decrement size
@@ -60,9 +60,9 @@ The Number component provides these props to your render function:
 - **`mode`** (`'auto' | 'box' | 'slider'`) - UI mode hint from Home Assistant (defaults to `'auto'`)
 
 #### Control Methods
-- **`setValue(value: number)`** - Set the value (validates min/max/step)
-- **`increment()`** - Increase value by step amount
-- **`decrement()`** - Decrease value by step amount
+- **`setValue(value: number)`** - Set the value (rejects non-finite numbers, clamps to min/max)
+- **`increment()`** - Increase value by step amount (does nothing while `value` is `null`)
+- **`decrement()`** - Decrease value by step amount (does nothing while `value` is `null`)
 
 #### Entity Properties
 - **`entityId`** (`string`) - The entity ID
@@ -90,7 +90,7 @@ The `useNumber` hook returns an object with all the same properties and methods 
 
 ## List All Numbers
 
-Use the `useNumbers` hook to retrieve all available number entities:
+The `useNumbers` hook returns every number entity Home Assistant knows about:
 
 ```tsx
 import { useNumbers } from 'hass-react'
@@ -111,7 +111,7 @@ function NumberList() {
 }
 ```
 
-The `useNumbers` hook fetches all number entities from Home Assistant and returns an array of number objects.
+Each item in the array is a raw entity object with `entity_id`, `state`, and `attributes`.
 
 ## Examples
 
@@ -127,7 +127,7 @@ The `useNumbers` hook fetches all number entities from Home Assistant and return
         min={min}
         max={max}
         step={step}
-        value={value}
+        value={value ?? min}
         onChange={(e) => setValue(parseFloat(e.target.value))}
       />
     </div>
@@ -143,11 +143,11 @@ The `useNumbers` hook fetches all number entities from Home Assistant and return
     <div>
       <h3>{attributes.friendly_name}</h3>
       <div>
-        <button onClick={decrement} disabled={value <= min}>
+        <button onClick={decrement} disabled={value === null || value <= min}>
           -
         </button>
         <span>{value}{unit}</span>
-        <button onClick={increment} disabled={value >= max}>
+        <button onClick={increment} disabled={value === null || value >= max}>
           +
         </button>
       </div>
@@ -169,7 +169,7 @@ The `useNumbers` hook fetches all number entities from Home Assistant and return
         min={min}
         max={max}
         step={step}
-        value={value}
+        value={value ?? min}
         onChange={(e) => setValue(parseFloat(e.target.value))}
       />
       <div>
@@ -199,7 +199,7 @@ The `useNumbers` hook fetches all number entities from Home Assistant and return
         min={min}
         max={max}
         step={step}
-        value={value}
+        value={value ?? min}
         onChange={(e) => setValue(parseFloat(e.target.value))}
       />
     </div>
@@ -223,7 +223,7 @@ function VolumeControl({ entityId }) {
         min={volume.min}
         max={volume.max}
         step={volume.step}
-        value={volume.value}
+        value={volume.value ?? volume.min}
         onChange={(e) => volume.setValue(parseFloat(e.target.value))}
       />
       <p>{volume.value}{volume.unit}</p>
@@ -243,7 +243,7 @@ function VolumeControl({ entityId }) {
 ```tsx
 <Number entityId="number.pool_temperature">
   {({ value, setValue, min, max, step, unit }) => {
-    const [inputValue, setInputValue] = React.useState(value.toString())
+    const [inputValue, setInputValue] = React.useState(value?.toString() ?? '')
     const [error, setError] = React.useState('')
 
     const handleChange = (e) => {
@@ -285,7 +285,7 @@ function VolumeControl({ entityId }) {
 
 ## Notes
 
-- The `setValue` method automatically validates that the value is a valid number using Zod validation and clamps it to min/max bounds
-- Invalid values (NaN, Infinity, etc.) will throw an error with a descriptive message
-- The `increment` and `decrement` methods respect the `step` property and won't exceed min/max bounds
-- Number entities are commonly used for volume controls, temperature settings, brightness thresholds, and other numeric configurations
+- `value` is `null` while the entity is unavailable or its state isn't numeric. `increment` and `decrement` do nothing in that case, and controlled inputs need a fallback (the examples above use `value ?? min`)
+- `setValue` rejects non-finite numbers (NaN, Infinity) with a thrown error and clamps everything else to the min/max bounds
+- `increment` and `decrement` move by `step` and stop at the bounds
+- Typical number entities: volume, temperature offsets, brightness thresholds
